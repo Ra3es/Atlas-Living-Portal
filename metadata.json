@@ -1,0 +1,6 @@
+{
+  "name": "Atlas Living Owner Portal",
+  "description": "Secure portal for Atlas Living property owners to view revenue and expense analytics and statements.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

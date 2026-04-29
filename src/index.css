@@ -1,0 +1,46 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-brand-slate-50: #f8fafc;
+  --color-brand-slate-100: #f1f5f9;
+  --color-brand-slate-200: #e2e8f0;
+  --color-brand-slate-400: #94a3b8;
+  --color-brand-slate-500: #64748b;
+  --color-brand-slate-600: #475569;
+  --color-brand-slate-800: #1e293b;
+  --color-brand-slate-900: #0f172a;
+  --color-brand-accent: #d97706;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-brand-slate-50);
+  color: var(--color-brand-slate-800);
+}
+
+.bento-card {
+  @apply bg-white border border-brand-slate-200 rounded-2xl p-5 shadow-sm flex flex-col transition-shadow hover:shadow-md;
+}
+
+.bento-label {
+  @apply text-[10px] font-bold text-brand-slate-500 uppercase tracking-widest mb-1;
+}
+
+.bento-value {
+  @apply text-2xl font-bold text-brand-slate-900 tracking-tight;
+}
+
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.glass-morphism {
+  @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
+}

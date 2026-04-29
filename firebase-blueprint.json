@@ -1,0 +1,169 @@
+{
+  "entities": {
+    "property": {
+      "title": "Property",
+      "description": "Details of a managed property",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique Property ID" },
+        "name": { "type": "string", "description": "Property Name" },
+        "ownerName": { "type": "string", "description": "Owner Name" },
+        "ownerEmail": { "type": "string", "description": "Owner Email" },
+        "managementFeePercent": { "type": "number", "description": "Management Fee %" },
+        "managementFeeFixed": { "type": "number", "description": "Management Fee Fixed" },
+        "pin": { "type": "string", "description": "Securely generated login PIN" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "ownerName", "ownerEmail", "pin"]
+    },
+    "revenue": {
+      "title": "Revenue Record",
+      "description": "Individual revenue log entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "propertyId": { "type": "string" },
+        "paymentDate": { "type": "string", "format": "date-time" },
+        "platform": { "type": "string" },
+        "guest": { "type": "string" },
+        "cleanings": { "type": "number" },
+        "gross": { "type": "number" },
+        "fees": { "type": "number" },
+        "netRevenue": { "type": "number" },
+        "uploadedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["propertyId", "paymentDate", "gross"]
+    },
+    "expense": {
+      "title": "Expense Record",
+      "description": "Individual expense log entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "propertyId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "category": { "type": "string" },
+        "supplier": { "type": "string" },
+        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "reimbursable": { "type": "boolean" },
+        "uploadedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["propertyId", "date", "amount"]
+    },
+    "fee": {
+      "title": "Custom Fee",
+      "description": "Individual custom fee entry for a property",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "propertyId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "addedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["propertyId", "date", "amount", "description"]
+    },
+    "payment": {
+      "title": "Payment Record",
+      "description": "Payment made by owner to Atlas Living",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "propertyId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "uploadedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["propertyId", "date", "amount"]
+    },
+    "cleaning": {
+      "title": "Cleaning Task",
+      "description": "Cleaning operations for a property",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "propertyId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["pending", "in-progress", "completed", "cancelled"] },
+        "cleanerName": { "type": "string" },
+        "notes": { "type": "string" },
+        "cost": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["propertyId", "date", "status"]
+    },
+    "maintenance": {
+      "title": "Maintenance Issue",
+      "description": "Maintenance tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "propertyId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "fixing", "resolved", "deferred"] },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"] },
+        "estimatedCost": { "type": "number" },
+        "actualCost": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["propertyId", "title", "status", "priority"]
+    },
+    "checkin": {
+      "title": "Guest Check-In",
+      "description": "Guest arrival and stay tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "propertyId": { "type": "string" },
+        "guestName": { "type": "string" },
+        "checkInDate": { "type": "string", "format": "date" },
+        "checkOutDate": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["upcoming", "checked-in", "checked-out", "no-show"] },
+        "platform": { "type": "string" },
+        "notes": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["propertyId", "guestName", "checkInDate", "checkOutDate", "status"]
+    }
+  },
+  "firestore": {
+    "/properties/{propertyId}": {
+      "schema": "property",
+      "description": "Collection of properties managed by Atlas Living"
+    },
+    "/revenue/{revenueId}": {
+      "schema": "revenue",
+      "description": "Flattened collection of all revenue logs"
+    },
+    "/expenses/{expenseId}": {
+      "schema": "expense",
+      "description": "Flattened collection of all expense logs"
+    },
+    "/fees/{feeId}": {
+      "schema": "fee",
+      "description": "Collection of custom fees for properties"
+    },
+    "/payments/{paymentId}": {
+      "schema": "payment",
+      "description": "Collection of payments received from owners"
+    },
+    "/cleanings/{cleaningId}": {
+      "schema": "cleaning",
+      "description": "Property cleaning schedules"
+    },
+    "/maintenance/{issueId}": {
+      "schema": "maintenance",
+      "description": "Property maintenance issues"
+    },
+    "/checkins/{checkinId}": {
+      "schema": "checkin",
+      "description": "Guest reservations and arrivals"
+    }
+  }
+}
