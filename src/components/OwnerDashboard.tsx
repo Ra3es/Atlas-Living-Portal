@@ -23,12 +23,19 @@ export default function OwnerDashboard({ property, onLogout }: OwnerDashboardPro
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [maintenance, setMaintenance] = useState<MaintenanceIssue[]>([]);
   const [loading, setLoading] = useState(true);
-  const [startDate, setStartDate] = useState(format(startOfMonth(new Date(new Date().setMonth(new Date().getMonth() - 5))), 'yyyy-MM-dd'));
+  const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
   const [view, setView] = useState<'overview' | 'revenue' | 'expenses' | 'statement' | 'operations'>('overview');
+  const contentRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (view !== 'overview' && contentRef.current) {
+      const yOffset = -100; 
+      const y = contentRef.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }, [view]);
 
   useEffect(() => {
@@ -316,7 +323,7 @@ export default function OwnerDashboard({ property, onLogout }: OwnerDashboardPro
           </div>
         </header>
 
-        <div className="max-w-7xl mx-auto p-4 md:p-8">
+        <div className="max-w-7xl mx-auto p-4 md:p-8" ref={contentRef}>
           {/* Row 1: Statement Period, Operational Profit, Net Revenue, Gross Revenue */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-3 md:mb-4">
             <div className="bento-card col-span-2 lg:col-span-1">
@@ -359,19 +366,25 @@ export default function OwnerDashboard({ property, onLogout }: OwnerDashboardPro
             </button>
 
             <button onClick={() => setView('revenue')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
-              <span className="bento-label text-brand-accent">In Bank</span>
-              <div className="bento-value text-base sm:text-lg lg:text-2xl text-brand-slate-700">{formatCurrency(stats.netRevenueInOwnerBank)}</div>
-              <div className="mt-auto pt-2 sm:pt-4">
-                <span className="text-[8px] sm:text-[9px] font-bold text-brand-slate-400 uppercase">Payouts</span>
+              <span className="bento-label text-brand-accent">Gross Revenue</span>
+              <div className="bento-value text-base sm:text-lg lg:text-2xl text-brand-slate-700">{formatCurrency(stats.totalGross)}</div>
+              <div className="mt-auto pt-2 sm:pt-4 flex flex-col gap-1">
+                <div className="flex justify-between items-center text-[8px] sm:text-[9px] font-bold uppercase">
+                  <span className="text-brand-slate-400">Fees</span>
+                  <span className="text-red-500">-{formatCurrency(stats.totalPlatformFees)}</span>
+                </div>
+                <div className="flex justify-between items-center text-[8px] sm:text-[9px] font-bold uppercase border-t border-brand-slate-100 pt-1">
+                  <span className="text-brand-slate-400">Net in Bank</span>
+                  <span className="text-brand-accent font-black">{formatCurrency(stats.netRevenueInOwnerBank)}</span>
+                </div>
               </div>
             </button>
 
             <button onClick={() => setView('revenue')} className="bento-card col-span-2 lg:col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
-              <span className="bento-label">Gross Revenue</span>
-              <div className="bento-value text-base sm:text-lg lg:text-2xl">{formatCurrency(stats.totalGross)}</div>
-              <div className="mt-2 flex items-center justify-between text-[8px] sm:text-[10px] font-bold uppercase tracking-tight">
-                <span className="text-brand-slate-400 font-medium">Fees</span>
-                <span className="text-red-500">-{formatCurrency(stats.totalPlatformFees)}</span>
+              <span className="bento-label">Performance</span>
+              <div className="bento-value text-base sm:text-lg lg:text-2xl">{stats.totalGross > 0 ? ((stats.profit / stats.totalGross) * 100).toFixed(1) : 0}%</div>
+              <div className="mt-auto pt-2 sm:pt-4">
+                <span className="text-[8px] sm:text-[10px] font-bold text-brand-slate-400 uppercase tracking-widest">Profit Margin</span>
               </div>
             </button>
           </div>
