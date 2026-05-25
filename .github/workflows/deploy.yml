@@ -32,3 +32,4 @@ jobs:
         password: ${{ secrets.FTP_PASSWORD }}
         local-dir: ./dist/
         server-dir: /home/atlasliving/portal.atlasliving.co.za/
+        dangerous-clean-slate: true
