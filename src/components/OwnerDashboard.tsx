@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, orderBy, onSnapshot, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { Property, RevenueLog, ExpenseLog, CustomFee, PaymentRecord, OperationType, MaintenanceIssue } from '../types';
 import { handleFirestoreError, formatCurrency, cn } from '../lib/utils';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   LineChart, Line, PieChart as RechartsPieChart, Pie, Cell
 } from 'recharts';
-import { Calendar, Download, TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, PieChart, LayoutDashboard, ListFilter, CreditCard, Receipt, Home, Clock, AlertTriangle, CheckCircle, FileText } from 'lucide-react';
+import { Calendar, Download, TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, PieChart, LayoutDashboard, ListFilter, CreditCard, Receipt, Home, Clock, AlertTriangle, CheckCircle, FileText, Ticket } from 'lucide-react';
 import { format as dateFnsFormat, startOfMonth, endOfMonth, isWithinInterval as dateFnsIsWithinInterval, parseISO as dateFnsParseISO } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -66,8 +66,9 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
-  const [view, setView] = useState<'overview' | 'revenue' | 'expenses' | 'statement' | 'operations'>('overview');
+  const [view, setView] = useState<'overview' | 'revenue' | 'expenses' | 'statement' | 'operations' | 'payments'>('overview');
   const contentRef = React.useRef<HTMLDivElement>(null);
+  const [showNewTicketForm, setShowNewTicketForm] = useState(false);
 
   useEffect(() => {
     if (view !== 'overview' && contentRef.current) {
@@ -238,6 +239,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
   }, [filteredPayments, filteredFees, filteredRevenue]);
 
   const stats = useMemo(() => {
+    // Current Filtered Period Totals
     const totalGross = filteredRevenue.reduce((acc, curr) => acc + curr.gross, 0);
     const totalPlatformFees = filteredRevenue.reduce((acc, curr) => acc + curr.fees, 0);
     const netRevenueInOwnerBank = filteredRevenue.reduce((acc, curr) => acc + curr.netRevenue, 0);
@@ -245,18 +247,41 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
     const totalExpenses = filteredExpenses.reduce((acc, curr) => acc + curr.amount, 0);
     const reimbursableExpenses = filteredExpenses.filter(e => e.reimbursable).reduce((acc, curr) => acc + curr.amount, 0);
     
-    // Management Costs (What the owner owes Atlas)
+    // Management Costs (What the owner owes Atlas for the filtered period)
+    // To properly calculate the fixed management fee for the filtered period, we count the unique months present in the filtered records
+    const filteredMonths = new Set<string>();
+    filteredRevenue.forEach(r => filteredMonths.add(format(parseISO(r.paymentDate), 'yyyy-MM')));
+    filteredExpenses.forEach(e => filteredMonths.add(format(parseISO(e.date), 'yyyy-MM')));
+    filteredFees.forEach(f => filteredMonths.add(format(parseISO(f.date), 'yyyy-MM')));
+    const filteredMonthsCount = Math.max(1, filteredMonths.size);
+
     const mgtPercentFee = (totalGross * property.managementFeePercent) / 100;
-    const mgtFixedFee = property.managementFeeFixed;
+    const mgtFixedFee = property.managementFeeFixed * filteredMonthsCount;
     const customMonthlyFees = filteredFees.reduce((acc, curr) => acc + curr.amount, 0);
     
-    // Total Invoice from Atlas
+    // Total Invoice from Atlas for filtered period
     const totalDueToAtlas = mgtPercentFee + mgtFixedFee + customMonthlyFees + reimbursableExpenses;
     
     // Payments made by owner to Atlas (Filtered by date)
     const totalPaymentsToAtlas = filteredPayments.reduce((acc, curr) => acc + curr.amount, 0);
     
-    const balanceRemainingToAtlas = totalDueToAtlas - totalPaymentsToAtlas;
+    // --- ALL TIME CALCULATION FOR BALANCE ---
+    const allTotalGross = revenue.reduce((acc, curr) => acc + curr.gross, 0);
+    const allReimbursableExpenses = expenses.filter(e => e.reimbursable).reduce((acc, curr) => acc + curr.amount, 0);
+    const allMgtPercentFee = (allTotalGross * property.managementFeePercent) / 100;
+    
+    const allMonths = new Set<string>();
+    revenue.forEach(r => allMonths.add(format(parseISO(r.paymentDate), 'yyyy-MM')));
+    expenses.forEach(e => allMonths.add(format(parseISO(e.date), 'yyyy-MM')));
+    fees.forEach(f => allMonths.add(format(parseISO(f.date), 'yyyy-MM')));
+    const allMonthsCount = Math.max(1, allMonths.size);
+    const allMgtFixedFee = property.managementFeeFixed * allMonthsCount;
+    
+    const allCustomFees = fees.reduce((acc, curr) => acc + curr.amount, 0);
+    const allTotalDueToAtlas = allMgtPercentFee + allMgtFixedFee + allCustomFees + allReimbursableExpenses;
+    const allTotalPaymentsToAtlas = payments.reduce((acc, curr) => acc + curr.amount, 0);
+    
+    const balanceRemainingToAtlas = allTotalDueToAtlas - allTotalPaymentsToAtlas;
 
     return { 
       totalGross, 
@@ -274,7 +299,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
       profit: netRevenueInOwnerBank - totalExpenses - mgtPercentFee - mgtFixedFee - customMonthlyFees,
       avgGrossPayout: filteredRevenue.length > 0 ? totalGross / filteredRevenue.length : 0
     };
-  }, [filteredRevenue, filteredExpenses, filteredFees, filteredPayments, property]);
+  }, [revenue, expenses, fees, payments, filteredRevenue, filteredExpenses, filteredFees, filteredPayments, property]);
 
   const chartData = useMemo(() => {
     // Generate data per month for the chart
@@ -379,8 +404,18 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                   view === 'operations' ? "bg-white text-brand-slate-900 shadow-sm" : "text-brand-slate-400 hover:text-brand-slate-600"
                 )}
               >
-                <Calendar size={14} />
+                <Ticket size={14} />
                 Tickets
+              </button>
+              <button 
+                onClick={() => setView('payments')} 
+                className={cn(
+                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                  view === 'payments' ? "bg-white text-brand-slate-900 shadow-sm" : "text-brand-slate-400 hover:text-brand-slate-600"
+                )}
+              >
+                <CreditCard size={14} />
+                Payments
               </button>
             </nav>
           </div>
@@ -415,7 +450,8 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                { id: 'overview', label: 'Home', icon: LayoutDashboard },
                { id: 'revenue', label: 'Rev', icon: TrendingUp },
                { id: 'expenses', label: 'Exp', icon: Wallet },
-               { id: 'operations', label: 'Tickets', icon: Calendar }
+               { id: 'operations', label: 'Tickets', icon: Ticket },
+               { id: 'payments', label: 'Pay', icon: CreditCard }
              ].map(tab => (
                <button
                  key={tab.id}
@@ -471,19 +507,22 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                     </div>
                   </div>
 
-                  <button onClick={() => setView('revenue')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer bg-green-50/30 border-green-100 p-3 sm:p-5">
+                  <button onClick={() => setView('revenue')} className="bento-card col-span-2 lg:col-span-2 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer bg-green-50/30 border-green-100 p-3 sm:p-5">
                     <span className="bento-label text-green-700">Profit</span>
-                    <div className={cn("text-lg sm:text-2xl font-bold tracking-tight", stats.profit >= 0 ? "text-green-600" : "text-red-500")}>
+                    <div className={cn("text-lg sm:text-2xl font-bold tracking-tight mb-2", stats.profit >= 0 ? "text-green-600" : "text-red-500")}>
                       {stats.totalGross > 0 ? formatCurrency(stats.profit) : (
                         <span className="text-[9px] sm:text-sm text-brand-slate-400 font-medium tracking-tight">Pending</span>
                       )}
                     </div>
-                    <div className="mt-auto pt-2 sm:pt-4 flex items-center justify-between">
+                    <div className="mt-auto pt-2 sm:pt-4 flex items-center justify-between border-t border-green-100/50">
                       <div className="text-[8px] sm:text-[9px] uppercase font-bold tracking-widest text-brand-slate-400">Net Profit</div>
+                      <div className="text-xs sm:text-sm font-black text-green-700">
+                        {stats.totalGross > 0 ? ((stats.profit / stats.totalGross) * 100).toFixed(1) : 0}% Margin
+                      </div>
                     </div>
                   </button>
 
-                  <button onClick={() => setView('revenue')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
+                  <button onClick={() => setView('revenue')} className="bento-card col-span-2 lg:col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
                     <span className="bento-label text-brand-accent">Gross Revenue</span>
                     <div className="bento-value text-base sm:text-lg lg:text-2xl text-brand-slate-700">{formatCurrency(stats.totalGross)}</div>
                     <div className="mt-auto pt-2 sm:pt-4 flex flex-col gap-1">
@@ -497,14 +536,6 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                       </div>
                     </div>
                   </button>
-
-                  <button onClick={() => setView('revenue')} className="bento-card col-span-2 lg:col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
-                    <span className="bento-label">Performance</span>
-                    <div className="bento-value text-base sm:text-lg lg:text-2xl">{stats.totalGross > 0 ? ((stats.profit / stats.totalGross) * 100).toFixed(1) : 0}%</div>
-                    <div className="mt-auto pt-2 sm:pt-4">
-                      <span className="text-[8px] sm:text-[10px] font-bold text-brand-slate-400 uppercase tracking-widest">Profit Margin</span>
-                    </div>
-                  </button>
                 </div>
 
                 {/* Row 2: Operational Expenses, Management Fees, Payments Applied, Outstanding Settlement */}
@@ -516,26 +547,26 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                   </button>
 
                   <div className="bento-card col-span-1 border-brand-accent/20 bg-brand-accent/5 p-3 sm:p-5">
-                    <span className="bento-label text-brand-accent">Mgmt Info</span>
+                    <span className="bento-label text-brand-accent">Management Fees</span>
                     <div className="bento-value text-brand-slate-900 text-base sm:text-lg lg:text-2xl">{formatCurrency(stats.totalManagementFees)}</div>
                     <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[10px] text-brand-slate-400 font-medium uppercase tracking-tight">Atlas Living</div>
                   </div>
 
-                  <button onClick={() => setView('revenue')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
+                  <button onClick={() => setView('payments')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
                     <span className="bento-label text-green-600">Payments</span>
                     <div className="bento-value text-green-600 text-base sm:text-lg lg:text-2xl">{formatCurrency(stats.totalPaymentsToAtlas)}</div>
                     <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[10px] text-brand-slate-400 font-medium uppercase tracking-tight">Reconciled</div>
                   </button>
 
-                  <div className={cn("bento-card col-span-1 p-3 sm:p-5", stats.balanceRemainingToAtlas > 0 ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200")}>
-                    <span className="bento-label font-bold text-[8px] sm:text-[10px]">{stats.balanceRemainingToAtlas > 0 ? "Payable" : "Settled"}</span>
+                  <button onClick={() => setView('payments')} className={cn("bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5", stats.balanceRemainingToAtlas > 0 ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200")}>
+                    <span className="bento-label font-bold text-[8px] sm:text-[10px]">{stats.balanceRemainingToAtlas > 0 ? "Currently Payable" : "Settled"}</span>
                     <div className={cn("text-base sm:text-lg lg:text-3xl font-black tracking-tighter", stats.balanceRemainingToAtlas > 0 ? "text-amber-700" : "text-green-700")}>
                       {formatCurrency(Math.abs(stats.balanceRemainingToAtlas))}
                     </div>
                     <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 truncate">
-                      {stats.balanceRemainingToAtlas > 0 ? "Outstanding" : "Balance Settled"}
+                      {stats.balanceRemainingToAtlas > 0 ? "All-Time Balance" : "All-time Balance Settled"}
                     </div>
-                  </div>
+                  </button>
                 </div>
 
                 {/* Row 3: Latest Expenses & Tickets */}
@@ -761,12 +792,84 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-6"
               >
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                    <h2 className="text-xl font-bold uppercase tracking-tight">Ticketing & Requests</h2>
-                   <div className="flex gap-2">
-                     <span className="bg-brand-slate-900 text-white px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest">Property Operations</span>
+                   <div className="flex items-center gap-2">
+                     <span className="hidden md:inline-block bg-brand-slate-900 text-white px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest mr-2">Property Operations</span>
+                     <button
+                       onClick={() => setShowNewTicketForm(true)}
+                       className="bg-brand-accent hover:bg-brand-accent/90 text-white font-bold px-4 py-2 text-xs rounded-lg uppercase tracking-widest transition-colors"
+                     >
+                       + New Ticket
+                     </button>
                    </div>
                 </div>
+
+                {showNewTicketForm && (
+                  <motion.div initial={{opacity:0, height:0}} animate={{opacity:1, height:'auto'}} className="bento-card p-6 border-brand-slate-300 shadow-xl relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-brand-accent"></div>
+                    <h3 className="font-black text-brand-slate-900 uppercase tracking-tight mb-4">Create New Ticket</h3>
+                    <form onSubmit={async (e) => {
+                      e.preventDefault();
+                      const form = e.target as HTMLFormElement;
+                      const title = (form.elements.namedItem('title') as HTMLInputElement).value;
+                      const description = (form.elements.namedItem('description') as HTMLTextAreaElement).value;
+                      const priority = (form.elements.namedItem('priority') as HTMLSelectElement).value as any;
+                      const category = (form.elements.namedItem('category') as HTMLInputElement).value;
+                      if (!title || !description) return;
+                      
+                      const newTicket: MaintenanceIssue = {
+                        id: `ticket_${Date.now()}`,
+                        propertyId: property.id,
+                        title,
+                        description,
+                        status: 'open',
+                        priority,
+                        category: category || 'general',
+                        date: dateFnsFormat(new Date(), 'yyyy-MM-dd'),
+                        ownerReported: true,
+                        createdAt: Date.now(),
+                        updatedAt: Date.now(),
+                      };
+                      
+                      try {
+                        await setDoc(doc(db, 'maintenance', newTicket.id), newTicket);
+                        setShowNewTicketForm(false);
+                      } catch (error) {
+                        console.error("Error adding ticket:", error);
+                        alert("Failed to submit ticket.");
+                      }
+                    }}>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-500">Title <span className="text-red-500">*</span></label>
+                          <input required name="title" type="text" className="w-full text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" placeholder="E.g. Leaking Faucet" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-500">Category</label>
+                          <input name="category" type="text" className="w-full text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" placeholder="E.g. Plumbing" />
+                        </div>
+                        <div className="space-y-1 md:col-span-2">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-500">Description <span className="text-red-500">*</span></label>
+                          <textarea required name="description" rows={3} className="w-full text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" placeholder="Please describe the issue in detail..."></textarea>
+                        </div>
+                        <div className="space-y-1 md:col-span-2">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-500">Priority</label>
+                          <select name="priority" className="w-full text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none bg-white">
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 justify-end pt-2 border-t border-brand-slate-100">
+                        <button type="button" onClick={() => setShowNewTicketForm(false)} className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-brand-slate-500 hover:bg-brand-slate-50 rounded-lg">Cancel</button>
+                        <button type="submit" className="px-6 py-2 text-xs font-bold uppercase tracking-widest text-white bg-brand-slate-900 rounded-lg shadow-sm hover:shadow-md hover:bg-brand-slate-800 transition-all">Submit Ticket</button>
+                      </div>
+                    </form>
+                  </motion.div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                   {/* Tickets List */}
@@ -839,6 +942,65 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                       )}
                     </div>
                   </div>
+                </div>
+              </motion.div>
+            )}
+
+            {view === 'payments' && (
+              <motion.div
+                key="payments-view"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+              >
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                   <h2 className="text-xl font-bold uppercase tracking-tight">Payments Reconciled</h2>
+                   
+                   <div className="flex gap-2">
+                     <span className="bg-brand-slate-900 text-white px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest">
+                       All-Time Balance: {formatCurrency(Math.max(0, stats.balanceRemainingToAtlas))}
+                     </span>
+                   </div>
+                </div>
+
+                <div className="bento-card p-0 overflow-hidden">
+                   <div className="p-6 border-b border-brand-slate-100 flex justify-between items-center bg-white">
+                      <span className="bento-label">Payment History</span>
+                      <div className="p-2 bg-brand-accent/10 rounded-lg text-brand-accent">
+                        <CreditCard size={18} />
+                      </div>
+                   </div>
+                   
+                   <div className="p-0 overflow-x-auto">
+                     <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-brand-slate-50 border-b border-brand-slate-100">
+                             <th className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-brand-slate-400">Date paid</th>
+                             <th className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-brand-slate-400">Amount</th>
+                             <th className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-brand-slate-400">Ref / Note</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-brand-slate-100 text-sm">
+                          {payments.length === 0 ? (
+                            <tr>
+                              <td colSpan={3} className="py-12 text-center text-brand-slate-400 font-bold uppercase tracking-widest text-xs">
+                                No payments recorded
+                              </td>
+                            </tr>
+                          ) : (
+                            payments.map((p) => (
+                               <tr key={p.id} className="hover:bg-brand-slate-50/50 transition-colors">
+                                 <td className="py-3 px-4 font-mono text-brand-slate-600 border-r border-brand-slate-100 w-32">{p.date}</td>
+                                 <td className="py-3 px-4 font-medium text-green-600">
+                                   {formatCurrency(p.amount)}
+                                 </td>
+                                 <td className="py-3 px-4 text-brand-slate-500 whitespace-pre-wrap">{p.description || '-'}</td>
+                               </tr>
+                            ))
+                          )}
+                        </tbody>
+                     </table>
+                   </div>
                 </div>
               </motion.div>
             )}
@@ -991,7 +1153,10 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
           <Wallet size={24} />
         </button>
         <button onClick={() => setView('operations')} className={cn("p-2", view === 'operations' ? "text-brand-slate-900" : "text-brand-slate-400")}>
-          <Calendar size={24} />
+          <Ticket size={24} />
+        </button>
+        <button onClick={() => setView('payments')} className={cn("p-2", view === 'payments' ? "text-brand-slate-900" : "text-brand-slate-400")}>
+          <CreditCard size={24} />
         </button>
         <button onClick={onLogout} className="p-2 text-brand-slate-400">
           <ArrowUpRight size={24} className="rotate-180" />

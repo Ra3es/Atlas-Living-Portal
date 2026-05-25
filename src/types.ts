@@ -65,13 +65,15 @@ export interface MaintenanceIssue {
   date: string;
   title: string;
   description: string;
-  category: 'maintenance' | 'cleaning' | 'block-request' | 'general' | 'other';
+  category: string;
   status: 'open' | 'fixing' | 'resolved' | 'deferred';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   notes?: string;
   estimatedCost?: number;
   actualCost?: number;
   updatedAt: number;
+  ownerReported?: boolean;
+  createdAt?: number;
 }
 
 export enum OperationType {
