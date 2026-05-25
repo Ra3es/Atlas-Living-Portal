@@ -1,19 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
 import { Property, OperationType } from '../types';
 import { handleFirestoreError } from '../lib/utils';
-import { ShieldCheck, ArrowRight, Key, Sparkles } from 'lucide-react';
+import { ShieldCheck, ArrowRight, Key, Sparkles, Building2, ChevronLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface OwnerLoginProps {
+  propertyId?: string | null;
   onLogin: (property: Property) => void;
 }
 
-export default function OwnerLogin({ onLogin }: OwnerLoginProps) {
+export default function OwnerLogin({ propertyId, onLogin }: OwnerLoginProps) {
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [targetProperty, setTargetProperty] = useState<Property | null>(null);
+  const [fetchingTarget, setFetchingTarget] = useState(false);
+
+  useEffect(() => {
+    if (!propertyId) {
+      setTargetProperty(null);
+      return;
+    }
+
+    const fetchProperty = async () => {
+      setFetchingTarget(true);
+      setError(null);
+      try {
+        const docRef = doc(db, 'properties', propertyId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setTargetProperty({ ...docSnap.data(), id: docSnap.id } as Property);
+        } else {
+          setError(`Property with ID "${propertyId}" was not found.`);
+        }
+      } catch (err) {
+        console.error(err);
+        setError('Failed to fetch property details.');
+      } finally {
+        setFetchingTarget(false);
+      }
+    };
+
+    fetchProperty();
+  }, [propertyId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,14 +54,22 @@ export default function OwnerLogin({ onLogin }: OwnerLoginProps) {
     setError(null);
     
     try {
-      const q = query(collection(db, 'properties'), where('pin', '==', pin), limit(1));
-      const snapshot = await getDocs(q);
-      
-      if (snapshot.empty) {
-        setError('Verification failed. Invalid access code.');
+      if (targetProperty) {
+        if (targetProperty.pin === pin) {
+          onLogin(targetProperty);
+        } else {
+          setError('Verification failed. Invalid access code.');
+        }
       } else {
-        const property = snapshot.docs[0].data() as Property;
-        onLogin(property);
+        const q = query(collection(db, 'properties'), where('pin', '==', pin), limit(1));
+        const snapshot = await getDocs(q);
+        
+        if (snapshot.empty) {
+          setError('Verification failed. Invalid access code.');
+        } else {
+          const property = snapshot.docs[0].data() as Property;
+          onLogin(property);
+        }
       }
     } catch (err) {
       handleFirestoreError(err, OperationType.GET, 'properties');
@@ -86,66 +125,100 @@ export default function OwnerLogin({ onLogin }: OwnerLoginProps) {
           transition={{ delay: 0.5 }}
           className="bg-white p-6 sm:p-10 rounded-[2rem] sm:rounded-[2.5rem] border border-brand-slate-100 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] relative"
         >
-          <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
-            <div className="space-y-3 sm:space-y-4">
-              <div className="flex items-center justify-between px-1">
-                <label className="text-[9px] sm:text-[10px] font-black text-brand-slate-900 uppercase tracking-widest opacity-30">Access PIN</label>
-                <div className="flex items-center gap-1.5 text-[8px] sm:text-[9px] font-bold text-brand-slate-400 uppercase tracking-tighter">
-                  <Key size={9} sm:size={10} />
-                  Encrypted
-                </div>
-              </div>
-              
-              <div className="relative group">
-                <input 
-                  type="password"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  placeholder="••••••"
-                  className="w-full text-center text-3xl sm:text-4xl font-mono tracking-[0.4em] py-4 sm:py-6 bg-brand-slate-50 border border-brand-slate-100 rounded-2xl sm:rounded-3xl focus:border-brand-accent focus:bg-white focus:ring-4 focus:ring-brand-accent/5 outline-none transition-all placeholder:text-brand-slate-200"
-                  maxLength={8}
-                  autoFocus
-                />
-                <div className="absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-transparent via-brand-accent/50 to-transparent scale-x-0 group-focus-within:scale-x-100 transition-transform duration-500" />
-              </div>
+          {fetchingTarget ? (
+            <div className="py-12 flex flex-col items-center justify-center gap-3">
+              <div className="w-8 h-8 border-4 border-brand-slate-100 border-t-brand-accent rounded-full animate-spin" />
+              <div className="text-[10px] font-black uppercase text-brand-slate-400 tracking-widest">Locating Property...</div>
             </div>
-
-            <AnimatePresence mode="wait">
-              {error && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="bg-red-50 border border-red-100 p-3 rounded-2xl flex items-center gap-3"
-                >
-                  <div className="w-6 h-6 bg-red-100 rounded-lg flex items-center justify-center shrink-0">
-                    <Sparkles className="text-red-600" size={12} />
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
+              {targetProperty && (
+                <div className="bg-brand-slate-50 border border-brand-slate-100 p-4 rounded-2xl flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-brand-slate-900 flex items-center justify-center text-brand-accent shrink-0">
+                    <Building2 size={16} />
                   </div>
-                  <p className="text-[11px] font-bold text-red-600 uppercase tracking-tight">
-                    {error}
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <button 
-              type="submit"
-              disabled={loading || pin.length < 4}
-              className="w-full bg-brand-slate-900 text-white py-4 sm:py-5 rounded-2xl sm:rounded-3xl font-black uppercase tracking-widest text-[11px] sm:text-xs flex items-center justify-center gap-4 hover:bg-black hover:shadow-xl hover:shadow-brand-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-20 disabled:cursor-not-allowed group"
-            >
-              {loading ? (
-                <div className="flex items-center gap-3">
-                  <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Verifying</span>
+                  <div className="text-left leading-tight">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-brand-slate-400">Linked Property</div>
+                    <div className="text-xs font-bold text-brand-slate-950">{targetProperty.name}</div>
+                  </div>
                 </div>
-              ) : (
-                <>
-                  <span>Initialize Dashboard</span>
-                  <ArrowRight size={16} sm:size={18} className="group-hover:translate-x-1 transition-transform" />
-                </>
               )}
-            </button>
-          </form>
+
+              <div className="space-y-3 sm:space-y-4">
+                <div className="flex items-center justify-between px-1">
+                  <label className="text-[9px] sm:text-[10px] font-black text-brand-slate-900 uppercase tracking-widest opacity-30">Access PIN</label>
+                  <div className="flex items-center gap-1.5 text-[8px] sm:text-[9px] font-bold text-brand-slate-400 uppercase tracking-tighter">
+                    <Key size={9} sm:size={10} />
+                    Encrypted
+                  </div>
+                </div>
+                
+                <div className="relative group">
+                  <input 
+                    type="password"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value)}
+                    placeholder="••••••"
+                    className="w-full text-center text-3xl sm:text-4xl font-mono tracking-[0.4em] py-4 sm:py-6 bg-brand-slate-50 border border-brand-slate-100 rounded-2xl sm:rounded-3xl focus:border-brand-accent focus:bg-white focus:ring-4 focus:ring-brand-accent/5 outline-none transition-all placeholder:text-brand-slate-200"
+                    maxLength={8}
+                    autoFocus
+                  />
+                  <div className="absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-transparent via-brand-accent/50 to-transparent scale-x-0 group-focus-within:scale-x-100 transition-transform duration-500" />
+                </div>
+              </div>
+
+              <AnimatePresence mode="wait">
+                {error && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="bg-red-50 border border-red-100 p-3 rounded-2xl flex items-center gap-3"
+                  >
+                    <div className="w-6 h-6 bg-red-100 rounded-lg flex items-center justify-center shrink-0">
+                      <Sparkles className="text-red-600" size={12} />
+                    </div>
+                    <p className="text-[11px] font-bold text-red-600 uppercase tracking-tight">
+                      {error}
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <button 
+                type="submit"
+                disabled={loading || pin.length < 4 || (!!propertyId && !targetProperty)}
+                className="w-full bg-brand-slate-900 text-white py-4 sm:py-5 rounded-2xl sm:rounded-3xl font-black uppercase tracking-widest text-[11px] sm:text-xs flex items-center justify-center gap-4 hover:bg-black hover:shadow-xl hover:shadow-brand-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-20 disabled:cursor-not-allowed group"
+              >
+                {loading ? (
+                  <div className="flex items-center gap-3">
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Verifying</span>
+                  </div>
+                ) : (
+                  <>
+                    <span>Initialize Dashboard</span>
+                    <ArrowRight size={16} sm:size={18} className="group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
+              </button>
+
+              {propertyId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.location.hash = '';
+                    window.history.pushState(null, '', '/');
+                    window.dispatchEvent(new Event('popstate'));
+                  }}
+                  className="w-full flex items-center justify-center gap-1 text-brand-slate-400 hover:text-brand-slate-600 border border-dashed border-brand-slate-200 hover:border-brand-slate-300 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all"
+                >
+                  <ChevronLeft size={10} />
+                  Main Login Portal
+                </button>
+              )}
+            </form>
+          )}
         </motion.div>
 
         <motion.div 

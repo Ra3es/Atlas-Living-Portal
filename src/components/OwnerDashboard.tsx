@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, onSnapshot, doc } from 'firebase/firestore';
 import { Property, RevenueLog, ExpenseLog, CustomFee, PaymentRecord, OperationType, MaintenanceIssue } from '../types';
 import { handleFirestoreError, formatCurrency, cn } from '../lib/utils';
 import { 
@@ -16,7 +16,8 @@ interface OwnerDashboardProps {
   onLogout: () => void;
 }
 
-export default function OwnerDashboard({ property, onLogout }: OwnerDashboardProps) {
+export default function OwnerDashboard({ property: initialProperty, onLogout }: OwnerDashboardProps) {
+  const [property, setProperty] = useState<Property>(initialProperty);
   const [revenue, setRevenue] = useState<RevenueLog[]>([]);
   const [expenses, setExpenses] = useState<ExpenseLog[]>([]);
   const [fees, setFees] = useState<CustomFee[]>([]);
@@ -39,6 +40,7 @@ export default function OwnerDashboard({ property, onLogout }: OwnerDashboardPro
   }, [view]);
 
   useEffect(() => {
+    let unsubProp = () => {};
     let unsubRev = () => {};
     let unsubExp = () => {};
     let unsubFees = () => {};
@@ -48,27 +50,33 @@ export default function OwnerDashboard({ property, onLogout }: OwnerDashboardPro
     const fetchData = async () => {
       setLoading(true);
       try {
-        const revenueQ = query(collection(db, 'revenue'), where('propertyId', '==', property.id));
+        unsubProp = onSnapshot(doc(db, 'properties', initialProperty.id), (docSnap) => {
+          if (docSnap.exists()) {
+            setProperty({ ...docSnap.data(), id: docSnap.id } as Property);
+          }
+        });
+
+        const revenueQ = query(collection(db, 'revenue'), where('propertyId', '==', initialProperty.id));
         unsubRev = onSnapshot(revenueQ, (snap) => {
           setRevenue(snap.docs.map(doc => doc.data() as RevenueLog).sort((a,b) => b.paymentDate.localeCompare(a.paymentDate)));
         });
 
-        const expensesQ = query(collection(db, 'expenses'), where('propertyId', '==', property.id));
+        const expensesQ = query(collection(db, 'expenses'), where('propertyId', '==', initialProperty.id));
         unsubExp = onSnapshot(expensesQ, (snap) => {
           setExpenses(snap.docs.map(doc => doc.data() as ExpenseLog).sort((a,b) => b.date.localeCompare(a.date)));
         });
 
-        const feesQ = query(collection(db, 'fees'), where('propertyId', '==', property.id));
+        const feesQ = query(collection(db, 'fees'), where('propertyId', '==', initialProperty.id));
         unsubFees = onSnapshot(feesQ, (snap) => {
           setFees(snap.docs.map(doc => doc.data() as CustomFee).sort((a,b) => b.date.localeCompare(a.date)));
         });
 
-        const paymentsQ = query(collection(db, 'payments'), where('propertyId', '==', property.id));
+        const paymentsQ = query(collection(db, 'payments'), where('propertyId', '==', initialProperty.id));
         unsubPay = onSnapshot(paymentsQ, (snap) => {
           setPayments(snap.docs.map(doc => doc.data() as PaymentRecord).sort((a,b) => b.date.localeCompare(a.date)));
         });
 
-        const maintenanceQ = query(collection(db, 'maintenance'), where('propertyId', '==', property.id));
+        const maintenanceQ = query(collection(db, 'maintenance'), where('propertyId', '==', initialProperty.id));
         unsubMaint = onSnapshot(maintenanceQ, (snap) => {
           setMaintenance(snap.docs.map(doc => doc.data() as MaintenanceIssue).sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0)));
         });
@@ -83,13 +91,14 @@ export default function OwnerDashboard({ property, onLogout }: OwnerDashboardPro
     fetchData();
 
     return () => {
+      unsubProp();
       unsubRev();
       unsubExp();
       unsubFees();
       unsubPay();
       unsubMaint();
     };
-  }, [property.id]);
+  }, [initialProperty.id]);
 
   const filteredRevenue = useMemo(() => {
     return revenue.filter(r => isWithinInterval(parseISO(r.paymentDate), { 
@@ -324,151 +333,6 @@ export default function OwnerDashboard({ property, onLogout }: OwnerDashboardPro
         </header>
 
         <div className="max-w-7xl mx-auto p-4 md:p-8" ref={contentRef}>
-          {/* Row 1: Statement Period, Operational Profit, Net Revenue, Gross Revenue */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-3 md:mb-4">
-            <div className="bento-card col-span-2 lg:col-span-1">
-              <span className="bento-label">Period</span>
-              <div className="text-xs sm:text-sm font-bold text-brand-slate-800 flex items-center gap-2 mb-2 sm:mb-4 uppercase">
-                {format(parseISO(startDate), 'MMM dd')} — {format(parseISO(endDate), 'MMM dd')}
-              </div>
-              <div className="mt-auto space-y-1 sm:space-y-2">
-                <div className="flex items-center gap-2 bg-brand-slate-50 p-1 rounded-lg border border-brand-slate-200">
-                  <Calendar size={10} className="text-brand-slate-400" />
-                  <input 
-                    type="date" 
-                    value={startDate} 
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="bg-transparent text-[9px] sm:text-[10px] font-bold outline-none w-full" 
-                  />
-                </div>
-                <div className="flex items-center gap-2 bg-brand-slate-50 p-1 rounded-lg border border-brand-slate-200">
-                  <Calendar size={10} className="text-brand-slate-400" />
-                  <input 
-                    type="date" 
-                    value={endDate} 
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="bg-transparent text-[9px] sm:text-[10px] font-bold outline-none w-full" 
-                  />
-                </div>
-              </div>
-            </div>
-
-            <button onClick={() => setView('revenue')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer bg-green-50/30 border-green-100 p-3 sm:p-5">
-              <span className="bento-label text-green-700">Profit</span>
-              <div className={cn("text-lg sm:text-2xl font-bold tracking-tight", stats.profit >= 0 ? "text-green-600" : "text-red-500")}>
-                {stats.totalGross > 0 ? formatCurrency(stats.profit) : (
-                  <span className="text-[9px] sm:text-sm text-brand-slate-400 font-medium tracking-tight">Pending</span>
-                )}
-              </div>
-              <div className="mt-auto pt-2 sm:pt-4 flex items-center justify-between">
-                <div className="text-[8px] sm:text-[9px] uppercase font-bold tracking-widest text-brand-slate-400">Net Profit</div>
-              </div>
-            </button>
-
-            <button onClick={() => setView('revenue')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
-              <span className="bento-label text-brand-accent">Gross Revenue</span>
-              <div className="bento-value text-base sm:text-lg lg:text-2xl text-brand-slate-700">{formatCurrency(stats.totalGross)}</div>
-              <div className="mt-auto pt-2 sm:pt-4 flex flex-col gap-1">
-                <div className="flex justify-between items-center text-[8px] sm:text-[9px] font-bold uppercase">
-                  <span className="text-brand-slate-400">Fees</span>
-                  <span className="text-red-500">-{formatCurrency(stats.totalPlatformFees)}</span>
-                </div>
-                <div className="flex justify-between items-center text-[8px] sm:text-[9px] font-bold uppercase border-t border-brand-slate-100 pt-1">
-                  <span className="text-brand-slate-400">Net in Bank</span>
-                  <span className="text-brand-accent font-black">{formatCurrency(stats.netRevenueInOwnerBank)}</span>
-                </div>
-              </div>
-            </button>
-
-            <button onClick={() => setView('revenue')} className="bento-card col-span-2 lg:col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
-              <span className="bento-label">Performance</span>
-              <div className="bento-value text-base sm:text-lg lg:text-2xl">{stats.totalGross > 0 ? ((stats.profit / stats.totalGross) * 100).toFixed(1) : 0}%</div>
-              <div className="mt-auto pt-2 sm:pt-4">
-                <span className="text-[8px] sm:text-[10px] font-bold text-brand-slate-400 uppercase tracking-widest">Profit Margin</span>
-              </div>
-            </button>
-          </div>
-
-          {/* Row 2: Operational Expenses, Management Fees, Payments Applied, Outstanding Settlement */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-3 md:mb-4">
-            <button onClick={() => setView('expenses')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
-              <span className="bento-label text-red-500">Expenses</span>
-              <div className="bento-value text-red-600 text-base sm:text-lg lg:text-2xl">{formatCurrency(stats.totalExpenses)}</div>
-              <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[9px] uppercase font-bold tracking-widest text-brand-slate-400">Portfolio</div>
-            </button>
-
-            <div className="bento-card col-span-1 border-brand-accent/20 bg-brand-accent/5 p-3 sm:p-5">
-              <span className="bento-label text-brand-accent">Mgmt Info</span>
-              <div className="bento-value text-brand-slate-900 text-base sm:text-lg lg:text-2xl">{formatCurrency(stats.totalManagementFees)}</div>
-              <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[10px] text-brand-slate-400 font-medium uppercase tracking-tight">Atlas Living</div>
-            </div>
-
-            <button onClick={() => setView('revenue')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
-              <span className="bento-label text-green-600">Payments</span>
-              <div className="bento-value text-green-600 text-base sm:text-lg lg:text-2xl">{formatCurrency(stats.totalPaymentsToAtlas)}</div>
-              <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[10px] text-brand-slate-400 font-medium uppercase tracking-tight">Reconciled</div>
-            </button>
-
-            <div className={cn("bento-card col-span-1 p-3 sm:p-5", stats.balanceRemainingToAtlas > 0 ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200")}>
-              <span className="bento-label font-bold text-[8px] sm:text-[10px]">{stats.balanceRemainingToAtlas > 0 ? "Payable" : "Settled"}</span>
-              <div className={cn("text-base sm:text-lg lg:text-3xl font-black tracking-tighter", stats.balanceRemainingToAtlas > 0 ? "text-amber-700" : "text-green-700")}>
-                {formatCurrency(Math.abs(stats.balanceRemainingToAtlas))}
-              </div>
-              <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 truncate">
-                {stats.balanceRemainingToAtlas > 0 ? "Outstanding" : "Balance Settled"}
-              </div>
-            </div>
-          </div>
-
-          {/* Row 3: Latest Expenses & Tickets */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-10">
-            <button onClick={() => setView('expenses')} className="bento-card text-left hover:scale-[1.01] transition-all cursor-pointer">
-              <span className="bento-label">Latest Expenses</span>
-              <div className="flex gap-4 mt-4 overflow-x-auto pb-2">
-                {filteredExpenses.slice(0, 4).map(e => (
-                  <div key={e.id} className="flex-1 min-w-[140px] bg-brand-slate-50 p-3 rounded-xl border border-brand-slate-100">
-                    <div className="text-[9px] font-bold text-brand-slate-400 uppercase mb-1">{format(parseISO(e.date), 'MMM dd')}</div>
-                    <div className="text-[10px] font-bold text-brand-slate-800 line-clamp-1">{e.description}</div>
-                    <div className="text-xs font-extrabold text-brand-slate-900 mt-2">{formatCurrency(e.amount)}</div>
-                  </div>
-                ))}
-                {filteredExpenses.length === 0 && <div className="text-xs text-brand-slate-400">No expenses recorded for this period.</div>}
-              </div>
-            </button>
-
-            <button onClick={() => setView('operations')} className="bento-card text-left hover:scale-[1.01] transition-all cursor-pointer">
-              <div className="flex items-center justify-between mb-4">
-                <span className="bento-label">Portfolio Tickets</span>
-                <span className="text-[9px] font-black uppercase text-brand-slate-400">{maintenance.filter(m => m.status !== 'resolved').length} Active Requests</span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {maintenance.filter(m => m.status !== 'resolved').length === 0 ? (
-                  <div className="col-span-2 py-4 text-center">
-                    <CheckCircle size={20} className="mx-auto text-green-500 opacity-50 mb-2" />
-                    <p className="text-[10px] font-bold text-brand-slate-400 uppercase">Seamless Operations</p>
-                  </div>
-                ) : (
-                  maintenance.filter(m => m.status !== 'resolved').slice(0, 2).map(m => (
-                    <div key={m.id} className="bg-white p-3 rounded-xl border border-brand-slate-100 flex items-start gap-4 h-fit">
-                      <div className={cn(
-                        "w-1 h-8 rounded-full shrink-0",
-                        m.priority === 'urgent' ? "bg-red-500" : m.priority === 'high' ? "bg-amber-500" : "bg-blue-500"
-                      )} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[8px] font-black px-1.5 py-0.5 bg-brand-slate-100 rounded text-brand-slate-500 uppercase">{m.category || 'General'}</span>
-                          <span className="text-xs font-black text-brand-slate-900 uppercase truncate">{m.title}</span>
-                        </div>
-                        <p className="text-[10px] text-brand-slate-500 line-clamp-1 italic">"{m.description}"</p>
-                      </div>
-                      <div className="text-[8px] font-bold text-brand-slate-400 mt-1 shrink-0">{m.date}</div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </button>
-          </div>
-
           <AnimatePresence mode="wait">
             {view === 'overview' && (
               <motion.div
@@ -476,9 +340,155 @@ export default function OwnerDashboard({ property, onLogout }: OwnerDashboardPro
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+                className="space-y-4 md:space-y-6"
               >
-                {/* Main Graph Card */}
+                {/* Row 1: Statement Period, Operational Profit, Net Revenue, Gross Revenue */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                  <div className="bento-card col-span-2 lg:col-span-1">
+                    <span className="bento-label">Period</span>
+                    <div className="text-xs sm:text-sm font-bold text-brand-slate-800 flex items-center gap-2 mb-2 sm:mb-4 uppercase">
+                      {format(parseISO(startDate), 'MMM dd')} — {format(parseISO(endDate), 'MMM dd')}
+                    </div>
+                    <div className="mt-auto space-y-1 sm:space-y-2">
+                      <div className="flex items-center gap-2 bg-brand-slate-50 p-1 rounded-lg border border-brand-slate-200">
+                        <Calendar size={10} className="text-brand-slate-400" />
+                        <input 
+                          type="date" 
+                          value={startDate} 
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className="bg-transparent text-[9px] sm:text-[10px] font-bold outline-none w-full" 
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 bg-brand-slate-50 p-1 rounded-lg border border-brand-slate-200">
+                        <Calendar size={10} className="text-brand-slate-400" />
+                        <input 
+                          type="date" 
+                          value={endDate} 
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className="bg-transparent text-[9px] sm:text-[10px] font-bold outline-none w-full" 
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <button onClick={() => setView('revenue')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer bg-green-50/30 border-green-100 p-3 sm:p-5">
+                    <span className="bento-label text-green-700">Profit</span>
+                    <div className={cn("text-lg sm:text-2xl font-bold tracking-tight", stats.profit >= 0 ? "text-green-600" : "text-red-500")}>
+                      {stats.totalGross > 0 ? formatCurrency(stats.profit) : (
+                        <span className="text-[9px] sm:text-sm text-brand-slate-400 font-medium tracking-tight">Pending</span>
+                      )}
+                    </div>
+                    <div className="mt-auto pt-2 sm:pt-4 flex items-center justify-between">
+                      <div className="text-[8px] sm:text-[9px] uppercase font-bold tracking-widest text-brand-slate-400">Net Profit</div>
+                    </div>
+                  </button>
+
+                  <button onClick={() => setView('revenue')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
+                    <span className="bento-label text-brand-accent">Gross Revenue</span>
+                    <div className="bento-value text-base sm:text-lg lg:text-2xl text-brand-slate-700">{formatCurrency(stats.totalGross)}</div>
+                    <div className="mt-auto pt-2 sm:pt-4 flex flex-col gap-1">
+                      <div className="flex justify-between items-center text-[8px] sm:text-[9px] font-bold uppercase">
+                        <span className="text-brand-slate-400">Fees</span>
+                        <span className="text-red-500">-{formatCurrency(stats.totalPlatformFees)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[8px] sm:text-[9px] font-bold uppercase border-t border-brand-slate-100 pt-1">
+                        <span className="text-brand-slate-400">Net in Bank</span>
+                        <span className="text-brand-accent font-black">{formatCurrency(stats.netRevenueInOwnerBank)}</span>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button onClick={() => setView('revenue')} className="bento-card col-span-2 lg:col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
+                    <span className="bento-label">Performance</span>
+                    <div className="bento-value text-base sm:text-lg lg:text-2xl">{stats.totalGross > 0 ? ((stats.profit / stats.totalGross) * 100).toFixed(1) : 0}%</div>
+                    <div className="mt-auto pt-2 sm:pt-4">
+                      <span className="text-[8px] sm:text-[10px] font-bold text-brand-slate-400 uppercase tracking-widest">Profit Margin</span>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Row 2: Operational Expenses, Management Fees, Payments Applied, Outstanding Settlement */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                  <button onClick={() => setView('expenses')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
+                    <span className="bento-label text-red-500">Expenses</span>
+                    <div className="bento-value text-red-600 text-base sm:text-lg lg:text-2xl">{formatCurrency(stats.totalExpenses)}</div>
+                    <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[9px] uppercase font-bold tracking-widest text-brand-slate-400">Portfolio</div>
+                  </button>
+
+                  <div className="bento-card col-span-1 border-brand-accent/20 bg-brand-accent/5 p-3 sm:p-5">
+                    <span className="bento-label text-brand-accent">Mgmt Info</span>
+                    <div className="bento-value text-brand-slate-900 text-base sm:text-lg lg:text-2xl">{formatCurrency(stats.totalManagementFees)}</div>
+                    <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[10px] text-brand-slate-400 font-medium uppercase tracking-tight">Atlas Living</div>
+                  </div>
+
+                  <button onClick={() => setView('revenue')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
+                    <span className="bento-label text-green-600">Payments</span>
+                    <div className="bento-value text-green-600 text-base sm:text-lg lg:text-2xl">{formatCurrency(stats.totalPaymentsToAtlas)}</div>
+                    <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[10px] text-brand-slate-400 font-medium uppercase tracking-tight">Reconciled</div>
+                  </button>
+
+                  <div className={cn("bento-card col-span-1 p-3 sm:p-5", stats.balanceRemainingToAtlas > 0 ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200")}>
+                    <span className="bento-label font-bold text-[8px] sm:text-[10px]">{stats.balanceRemainingToAtlas > 0 ? "Payable" : "Settled"}</span>
+                    <div className={cn("text-base sm:text-lg lg:text-3xl font-black tracking-tighter", stats.balanceRemainingToAtlas > 0 ? "text-amber-700" : "text-green-700")}>
+                      {formatCurrency(Math.abs(stats.balanceRemainingToAtlas))}
+                    </div>
+                    <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 truncate">
+                      {stats.balanceRemainingToAtlas > 0 ? "Outstanding" : "Balance Settled"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 3: Latest Expenses & Tickets */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <button onClick={() => setView('expenses')} className="bento-card text-left hover:scale-[1.01] transition-all cursor-pointer">
+                    <span className="bento-label">Latest Expenses</span>
+                    <div className="flex gap-4 mt-4 overflow-x-auto pb-2">
+                      {filteredExpenses.slice(0, 4).map(e => (
+                        <div key={e.id} className="flex-1 min-w-[140px] bg-brand-slate-50 p-3 rounded-xl border border-brand-slate-100">
+                          <div className="text-[9px] font-bold text-brand-slate-400 uppercase mb-1">{format(parseISO(e.date), 'MMM dd')}</div>
+                          <div className="text-[10px] font-bold text-brand-slate-800 line-clamp-1">{e.description}</div>
+                          <div className="text-xs font-extrabold text-brand-slate-900 mt-2">{formatCurrency(e.amount)}</div>
+                        </div>
+                      ))}
+                      {filteredExpenses.length === 0 && <div className="text-xs text-brand-slate-400">No expenses recorded for this period.</div>}
+                    </div>
+                  </button>
+
+                  <button onClick={() => setView('operations')} className="bento-card text-left hover:scale-[1.01] transition-all cursor-pointer">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="bento-label">Portfolio Tickets</span>
+                      <span className="text-[9px] font-black uppercase text-brand-slate-400">{maintenance.filter(m => m.status !== 'resolved').length} Active Requests</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {maintenance.filter(m => m.status !== 'resolved').length === 0 ? (
+                        <div className="col-span-2 py-4 text-center">
+                          <CheckCircle size={20} className="mx-auto text-green-500 opacity-50 mb-2" />
+                          <p className="text-[10px] font-bold text-brand-slate-400 uppercase">Seamless Operations</p>
+                        </div>
+                      ) : (
+                        maintenance.filter(m => m.status !== 'resolved').slice(0, 2).map(m => (
+                          <div key={m.id} className="bg-white p-3 rounded-xl border border-brand-slate-100 flex items-start gap-4 h-fit">
+                            <div className={cn(
+                              "w-1 h-8 rounded-full shrink-0",
+                              m.priority === 'urgent' ? "bg-red-500" : m.priority === 'high' ? "bg-amber-500" : "bg-blue-500"
+                            )} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[8px] font-black px-1.5 py-0.5 bg-brand-slate-100 rounded text-brand-slate-500 uppercase">{m.category || 'General'}</span>
+                                <span className="text-xs font-black text-brand-slate-900 uppercase truncate">{m.title}</span>
+                              </div>
+                              <p className="text-[10px] text-brand-slate-500 line-clamp-1 italic">"{m.description}"</p>
+                            </div>
+                            <div className="text-[8px] font-bold text-brand-slate-400 mt-1 shrink-0">{m.date}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </button>
+                </div>
+
+                {/* Grid row 4: Chart, Activity sidebar, Support */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bento-card col-span-1 md:col-span-3 row-span-2 shadow-2xl shadow-black/5">
                   <div className="flex justify-between items-center mb-6">
                     <span className="bento-label text-brand-accent">Revenue Breakdown & Profitability</span>
@@ -640,8 +650,9 @@ export default function OwnerDashboard({ property, onLogout }: OwnerDashboardPro
                     </div>
                   </div>
                 </div>
-              </motion.div>
-            )}
+              </div>
+            </motion.div>
+          )}
 
             {view === 'operations' && (
               <motion.div
@@ -817,6 +828,8 @@ export default function OwnerDashboard({ property, onLogout }: OwnerDashboardPro
                 </div>
               </motion.div>
             )}
+
+
           </AnimatePresence>
         </div>
       </main>

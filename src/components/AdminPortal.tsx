@@ -5,7 +5,7 @@ import { collection, query, getDocs, setDoc, doc, deleteDoc, writeBatch, where, 
 import { Property, RevenueLog, ExpenseLog, CustomFee, PaymentRecord, OperationType, MaintenanceIssue } from '../types';
 import { handleFirestoreError, cn, formatCurrency } from '../lib/utils';
 import { parseRevenueCSV, parseExpenseCSV, parseSettingsCSV, parsePaymentCSV } from '../services/csvService';
-import { Upload, Plus, Trash2, Key, LogOut, ChevronRight, FileText, Database, Eye, CreditCard, CheckCircle, Clock, AlertTriangle, MessageSquare, Pencil, Check, X, Settings, ListFilter } from 'lucide-react';
+import { Upload, Plus, Trash2, Key, LogOut, ChevronRight, FileText, Database, Eye, CreditCard, CheckCircle, Clock, AlertTriangle, MessageSquare, Pencil, Check, X, Settings, ListFilter, ArrowUpRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 
@@ -44,9 +44,10 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
     const unsubProps = onSnapshot(qProps, (snapshot) => {
       const props = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Property));
       setProperties(props);
-      if (props.length > 0 && !selectedProperty) {
-        setSelectedProperty(props[0]);
-      }
+      setSelectedProperty((prev) => {
+        if (!prev) return props[0] || null;
+        return props.find(p => p.id === prev.id) || props[0] || null;
+      });
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'properties'));
 
     // Real-time ALL Fees for spreadsheet
@@ -840,6 +841,7 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                             <input name="ownerEmail" type="email" required className="w-full bg-brand-slate-50 border border-brand-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold" />
                           </div>
                         </div>
+
                         <button type="submit" className="w-full bg-brand-slate-900 text-white py-3 rounded-xl font-bold uppercase tracking-widest text-[10px] hover:bg-black transition-all shadow-lg">
                           Register Property
                         </button>
