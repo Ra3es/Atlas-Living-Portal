@@ -355,97 +355,112 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
   if (loading) return <div className="h-screen flex items-center justify-center font-sans">Generating Statement...</div>;
 
   return (
-    <div className="min-h-screen bg-brand-slate-50 font-sans text-brand-slate-800 pb-20">
+    <div className="min-h-screen bg-brand-slate-50 font-sans text-brand-slate-800 pb-20 lg:pb-0 flex flex-col lg:flex-row">
+      {/* Desktop Sidebar */}
+      <aside className="hidden lg:flex w-64 flex-col bg-white border-r border-brand-slate-200 sticky top-0 h-screen p-6 z-20">
+        <div className="text-2xl font-serif tracking-[0.12em] text-brand-slate-900 font-light flex items-center gap-1 mb-10">
+          ATLAS <span className="text-brand-accent font-medium">LIVING</span>
+        </div>
+        
+        <nav className="flex flex-col gap-2">
+          <button 
+            onClick={() => setView('overview')} 
+            className={cn(
+              "px-4 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
+              view === 'overview' ? "bg-brand-slate-900 text-white shadow-sm" : "text-brand-slate-500 hover:bg-brand-slate-50 hover:text-brand-slate-900"
+            )}
+          >
+            <LayoutDashboard size={16} />
+            Overview
+          </button>
+          <button 
+            onClick={() => setView('revenue')} 
+            className={cn(
+              "px-4 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
+              view === 'revenue' ? "bg-brand-slate-900 text-white shadow-sm" : "text-brand-slate-500 hover:bg-brand-slate-50 hover:text-brand-slate-900"
+            )}
+          >
+            <TrendingUp size={16} />
+            Revenue
+          </button>
+          <button 
+            onClick={() => setView('expenses')} 
+            className={cn(
+              "px-4 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
+              view === 'expenses' ? "bg-brand-slate-900 text-white shadow-sm" : "text-brand-slate-500 hover:bg-brand-slate-50 hover:text-brand-slate-900"
+            )}
+          >
+            <Wallet size={16} />
+            Expenses
+          </button>
+          <button 
+            onClick={() => setView('operations')} 
+            className={cn(
+              "px-4 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
+              view === 'operations' ? "bg-brand-slate-900 text-white shadow-sm" : "text-brand-slate-500 hover:bg-brand-slate-50 hover:text-brand-slate-900"
+            )}
+          >
+            <Ticket size={16} />
+            Tickets
+          </button>
+          <button 
+            onClick={() => setView('payments')} 
+            className={cn(
+              "px-4 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
+              view === 'payments' ? "bg-brand-slate-900 text-white shadow-sm" : "text-brand-slate-500 hover:bg-brand-slate-50 hover:text-brand-slate-900"
+            )}
+          >
+            <CreditCard size={16} />
+            Payments
+          </button>
+        </nav>
+
+        <div className="mt-auto flex flex-col gap-4">
+          <div className="flex items-center gap-3 pb-4 border-b border-brand-slate-100">
+            <div className="w-10 h-10 rounded-full bg-brand-slate-100 text-brand-slate-900 flex items-center justify-center font-bold text-sm">
+              {property.ownerName.charAt(0)}
+            </div>
+            <div>
+              <div className="text-xs font-bold text-brand-slate-900 line-clamp-1">{property.ownerName}</div>
+              <div className="text-[10px] font-bold text-brand-slate-400 uppercase tracking-widest">ID: {property.id}</div>
+            </div>
+          </div>
+          
+          <button 
+            onClick={onLogout} 
+            className="flex items-center gap-3 px-4 py-3 rounded-lg text-xs font-black uppercase tracking-widest text-brand-slate-400 hover:bg-red-50 hover:text-red-500 transition-all w-full text-left"
+          >
+            <ArrowUpRight size={16} className="rotate-180" />
+            Sign Out
+          </button>
+        </div>
+      </aside>
+
       {/* Main Content Area */}
-      <main>
-        {/* Top Header */}
-        <header className="bg-white/95 backdrop-blur-md sticky top-0 px-4 md:px-8 py-2 md:py-3 flex flex-col lg:flex-row items-center justify-between z-20 border-b border-brand-slate-200 gap-2 md:gap-4">
-          <div className="flex items-center gap-8 w-full lg:w-auto justify-between lg:justify-start">
+      <main className="flex-1 w-full lg:h-screen lg:overflow-y-auto">
+        {/* Mobile Top Header */}
+        <header className="lg:hidden bg-white/95 backdrop-blur-md sticky top-0 px-4 py-3 flex flex-col md:flex-row items-center justify-between z-20 border-b border-brand-slate-200 gap-3">
+          <div className="flex items-center justify-between w-full">
             <div className="text-xl md:text-2xl font-serif tracking-[0.12em] text-brand-slate-900 font-light flex items-center gap-1">
               ATLAS <span className="text-brand-accent font-medium">LIVING</span>
             </div>
             
-            {/* Desktop Navigation */}
-            <nav className="hidden lg:flex items-center gap-1 bg-brand-slate-50 p-1 rounded-xl border border-brand-slate-100">
+            <div className="flex items-center gap-3">
               <button 
-                onClick={() => setView('overview')} 
-                className={cn(
-                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
-                  view === 'overview' ? "bg-white text-brand-slate-900 shadow-sm" : "text-brand-slate-400 hover:text-brand-slate-600"
-                )}
+                onClick={onLogout} 
+                className="p-1.5 text-brand-slate-400 hover:text-red-500 rounded-lg transition-all"
+                title="Exit View"
               >
-                <LayoutDashboard size={14} />
-                Overview
+                <ArrowUpRight size={18} className="rotate-180" />
               </button>
-              <button 
-                onClick={() => setView('revenue')} 
-                className={cn(
-                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
-                  view === 'revenue' ? "bg-white text-brand-slate-900 shadow-sm" : "text-brand-slate-400 hover:text-brand-slate-600"
-                )}
-              >
-                <TrendingUp size={14} />
-                Revenue
-              </button>
-              <button 
-                onClick={() => setView('expenses')} 
-                className={cn(
-                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
-                  view === 'expenses' ? "bg-white text-brand-slate-900 shadow-sm" : "text-brand-slate-400 hover:text-brand-slate-600"
-                )}
-              >
-                <Wallet size={14} />
-                Expenses
-              </button>
-              <button 
-                onClick={() => setView('operations')} 
-                className={cn(
-                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
-                  view === 'operations' ? "bg-white text-brand-slate-900 shadow-sm" : "text-brand-slate-400 hover:text-brand-slate-600"
-                )}
-              >
-                <Ticket size={14} />
-                Tickets
-              </button>
-              <button 
-                onClick={() => setView('payments')} 
-                className={cn(
-                  "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
-                  view === 'payments' ? "bg-white text-brand-slate-900 shadow-sm" : "text-brand-slate-400 hover:text-brand-slate-600"
-                )}
-              >
-                <CreditCard size={14} />
-                Payments
-              </button>
-            </nav>
-          </div>
-          
-          <div className="flex items-center gap-4 md:gap-6 w-full lg:w-auto justify-between md:justify-end">
-            <div className="flex items-center gap-3 sm:gap-6">
-              <div className="text-right">
-                <div className="text-[9px] sm:text-[10px] font-bold text-brand-slate-500 uppercase">Property ID</div>
-                <div className="text-[11px] sm:text-sm font-bold text-brand-slate-900">{property.id}</div>
-              </div>
-              <div className="h-6 sm:h-8 w-px bg-brand-slate-200"></div>
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand-slate-900 text-white flex items-center justify-center font-bold text-[10px] sm:text-xs">
-                  {property.ownerName.charAt(0)}
-                </div>
-                <div className="text-xs sm:text-sm font-bold text-brand-slate-700 hidden md:block">{property.ownerName}</div>
+              <div className="w-8 h-8 rounded-full bg-brand-slate-900 text-white flex items-center justify-center font-bold text-xs">
+                {property.ownerName.charAt(0)}
               </div>
             </div>
-
-            <button 
-              onClick={onLogout} 
-              className="p-2 sm:p-2.5 bg-brand-slate-100 hover:bg-red-50 text-brand-slate-400 hover:text-red-500 rounded-lg sm:rounded-xl transition-all group"
-              title="Exit View"
-            >
-              <ArrowUpRight size={16} sm:size={18} className="rotate-180" />
-            </button>
           </div>
-
+          
           {/* Mobile Tab Bar */}
-          <div className="lg:hidden w-full flex items-center gap-2 bg-brand-slate-50 p-1 rounded-xl border border-brand-slate-100 overflow-x-auto no-scrollbar">
+          <div className="w-full flex items-center gap-2 bg-brand-slate-50 p-1 rounded-xl border border-brand-slate-100 overflow-x-auto no-scrollbar">
              {[
                { id: 'overview', label: 'Home', icon: LayoutDashboard },
                { id: 'revenue', label: 'Rev', icon: TrendingUp },
@@ -523,16 +538,16 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                   </button>
 
                   <button onClick={() => setView('revenue')} className="bento-card col-span-2 lg:col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
-                    <span className="bento-label text-brand-accent">Gross Revenue</span>
-                    <div className="bento-value text-base sm:text-lg lg:text-2xl text-brand-slate-700">{formatCurrency(stats.totalGross)}</div>
+                    <span className="bento-label text-brand-accent">Net Revenue</span>
+                    <div className="bento-value text-base sm:text-lg lg:text-2xl text-brand-slate-700">{formatCurrency(stats.netRevenueInOwnerBank)}</div>
                     <div className="mt-auto pt-2 sm:pt-4 flex flex-col gap-1">
                       <div className="flex justify-between items-center text-[8px] sm:text-[9px] font-bold uppercase">
-                        <span className="text-brand-slate-400">Fees</span>
-                        <span className="text-red-500">-{formatCurrency(stats.totalPlatformFees)}</span>
+                        <span className="text-brand-slate-400">Gross</span>
+                        <span className="text-brand-slate-700">{formatCurrency(stats.totalGross)}</span>
                       </div>
                       <div className="flex justify-between items-center text-[8px] sm:text-[9px] font-bold uppercase border-t border-brand-slate-100 pt-1">
-                        <span className="text-brand-slate-400">Net in Bank</span>
-                        <span className="text-brand-accent font-black">{formatCurrency(stats.netRevenueInOwnerBank)}</span>
+                        <span className="text-brand-slate-400">Fees</span>
+                        <span className="text-red-500">-{formatCurrency(stats.totalPlatformFees)}</span>
                       </div>
                     </div>
                   </button>
@@ -662,6 +677,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                           <Tooltip 
                             cursor={{ fill: '#f8fafc' }}
                             contentStyle={{ borderRadius: '1rem', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                            formatter={(value: number) => formatCurrency(value)}
                           />
                           <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', paddingBottom: '20px' }} />
                           <Bar dataKey="netProfit" stackId="revenue" fill="#059669" name="Net Profit" radius={[0, 0, 0, 0]} />
@@ -1140,28 +1156,6 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
           </AnimatePresence>
         </div>
       </main>
-
-      {/* Mobile Navigation */}
-      <div className="fixed bottom-0 left-0 w-full bg-white border-t border-brand-slate-200 flex items-center justify-around py-4 z-30 lg:hidden">
-        <button onClick={() => setView('overview')} className={cn("p-2", view === 'overview' ? "text-brand-slate-900" : "text-brand-slate-400")}>
-          <LayoutDashboard size={24} />
-        </button>
-        <button onClick={() => setView('revenue')} className={cn("p-2", view === 'revenue' ? "text-brand-slate-900" : "text-brand-slate-400")}>
-          <TrendingUp size={24} />
-        </button>
-        <button onClick={() => setView('expenses')} className={cn("p-2", view === 'expenses' ? "text-brand-slate-900" : "text-brand-slate-400")}>
-          <Wallet size={24} />
-        </button>
-        <button onClick={() => setView('operations')} className={cn("p-2", view === 'operations' ? "text-brand-slate-900" : "text-brand-slate-400")}>
-          <Ticket size={24} />
-        </button>
-        <button onClick={() => setView('payments')} className={cn("p-2", view === 'payments' ? "text-brand-slate-900" : "text-brand-slate-400")}>
-          <CreditCard size={24} />
-        </button>
-        <button onClick={onLogout} className="p-2 text-brand-slate-400">
-          <ArrowUpRight size={24} className="rotate-180" />
-        </button>
-      </div>
     </div>
   );
 }
