@@ -114,6 +114,66 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
     }));
   }, [expenses, startDate, endDate]);
 
+  const [revSortField, setRevSortField] = useState<'paymentDate' | 'guest' | 'gross' | 'fees' | 'netRevenue'>('paymentDate');
+  const [revSortDirection, setRevSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const [expSortField, setExpSortField] = useState<'date' | 'description' | 'amount' | 'reimbursable'>('date');
+  const [expSortDirection, setExpSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const toggleRevSort = (field: 'paymentDate' | 'guest' | 'gross' | 'fees' | 'netRevenue') => {
+    if (revSortField === field) {
+      setRevSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setRevSortField(field);
+      setRevSortDirection('desc');
+    }
+  };
+
+  const toggleExpSort = (field: 'date' | 'description' | 'amount' | 'reimbursable') => {
+    if (expSortField === field) {
+      setExpSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setExpSortField(field);
+      setExpSortDirection('desc');
+    }
+  };
+
+  const sortedRevenue = useMemo(() => {
+    const items = [...filteredRevenue];
+    return items.sort((a, b) => {
+      let comparison = 0;
+      if (revSortField === 'paymentDate') {
+        comparison = (a.paymentDate || '').localeCompare(b.paymentDate || '');
+      } else if (revSortField === 'guest') {
+        comparison = (a.guest || '').localeCompare(b.guest || '');
+      } else if (revSortField === 'gross') {
+        comparison = (a.gross || 0) - (b.gross || 0);
+      } else if (revSortField === 'fees') {
+        comparison = (a.fees || 0) - (b.fees || 0);
+      } else if (revSortField === 'netRevenue') {
+        comparison = (a.netRevenue || 0) - (b.netRevenue || 0);
+      }
+      return revSortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [filteredRevenue, revSortField, revSortDirection]);
+
+  const sortedExpenses = useMemo(() => {
+    const items = [...filteredExpenses];
+    return items.sort((a, b) => {
+      let comparison = 0;
+      if (expSortField === 'date') {
+        comparison = (a.date || '').localeCompare(b.date || '');
+      } else if (expSortField === 'description') {
+        comparison = (a.description || '').localeCompare(b.description || '');
+      } else if (expSortField === 'amount') {
+        comparison = (a.amount || 0) - (b.amount || 0);
+      } else if (expSortField === 'reimbursable') {
+        comparison = (a.reimbursable ? 1 : 0) - (b.reimbursable ? 1 : 0);
+      }
+      return expSortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [filteredExpenses, expSortField, expSortDirection]);
+
   const filteredFees = useMemo(() => {
     return fees.filter(f => isWithinInterval(parseISO(f.date), { 
       start: parseISO(startDate), 
@@ -494,7 +554,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                     <span className="bento-label text-brand-accent">Revenue Breakdown & Profitability</span>
                   </div>
                   <div className="h-[350px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height={350}>
                       {chartData.length === 1 ? (
                         <RechartsPieChart>
                           <Pie
@@ -758,15 +818,40 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                     <table className="w-full text-left min-w-[600px]">
                       <thead className="border-b border-brand-slate-100">
                         <tr>
-                          <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400">Date</th>
-                          <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400">Guest</th>
-                          <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 text-right">Gross</th>
-                          <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 text-right text-red-500">Fees</th>
-                          <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 text-right text-brand-accent">Net</th>
+                          <th 
+                            onClick={() => toggleRevSort('paymentDate')} 
+                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                          >
+                            Date {revSortField === 'paymentDate' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
+                          </th>
+                          <th 
+                            onClick={() => toggleRevSort('guest')} 
+                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                          >
+                            Guest / Platform {revSortField === 'guest' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
+                          </th>
+                          <th 
+                            onClick={() => toggleRevSort('gross')} 
+                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 text-right cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                          >
+                            Gross {revSortField === 'gross' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
+                          </th>
+                          <th 
+                            onClick={() => toggleRevSort('fees')} 
+                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 text-right text-red-500 cursor-pointer select-none hover:text-red-700 transition-colors"
+                          >
+                            Fees {revSortField === 'fees' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
+                          </th>
+                          <th 
+                            onClick={() => toggleRevSort('netRevenue')} 
+                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 text-right text-brand-accent cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                          >
+                            Net {revSortField === 'netRevenue' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-brand-slate-50">
-                        {filteredRevenue.map(r => (
+                        {sortedRevenue.map(r => (
                           <tr key={r.id}>
                             <td className="py-4 text-xs font-bold">{format(parseISO(r.paymentDate), 'MMM dd, yyyy')}</td>
                             <td className="py-4 text-xs font-medium text-brand-slate-600">{r.guest} • <span className="text-[10px] uppercase font-bold text-brand-slate-400">{r.platform}</span></td>
@@ -803,14 +888,34 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                     <table className="w-full text-left min-w-[600px]">
                        <thead className="border-b border-brand-slate-100">
                         <tr>
-                          <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400">Date</th>
-                          <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400">Description</th>
-                          <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 text-right">Amount</th>
-                          <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 text-center">Reimbursable</th>
+                          <th 
+                            onClick={() => toggleExpSort('date')} 
+                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                          >
+                            Date {expSortField === 'date' ? (expSortDirection === 'asc' ? '▲' : '▼') : ''}
+                          </th>
+                          <th 
+                            onClick={() => toggleExpSort('description')} 
+                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                          >
+                            Description {expSortField === 'description' ? (expSortDirection === 'asc' ? '▲' : '▼') : ''}
+                          </th>
+                          <th 
+                            onClick={() => toggleExpSort('amount')} 
+                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 text-right cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                          >
+                            Amount {expSortField === 'amount' ? (expSortDirection === 'asc' ? '▲' : '▼') : ''}
+                          </th>
+                          <th 
+                            onClick={() => toggleExpSort('reimbursable')} 
+                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 text-center cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                          >
+                            Reimbursable {expSortField === 'reimbursable' ? (expSortDirection === 'asc' ? '▲' : '▼') : ''}
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-brand-slate-50">
-                        {filteredExpenses.map(e => (
+                        {sortedExpenses.map(e => (
                           <tr key={e.id}>
                             <td className="py-4 text-xs font-bold">{format(parseISO(e.date), 'MMM dd, yyyy')}</td>
                             <td className="py-4 text-xs font-medium text-brand-slate-600">{e.description} • <span className="text-[10px] uppercase font-bold text-brand-slate-400">{e.category}</span></td>

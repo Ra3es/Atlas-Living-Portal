@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db, auth, googleProvider } from '../lib/firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { collection, query, getDocs, setDoc, doc, deleteDoc, writeBatch, where, onSnapshot, orderBy } from 'firebase/firestore';
@@ -37,6 +37,87 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+
+  const [revSortField, setRevSortField] = useState<'paymentDate' | 'guest' | 'gross'>('paymentDate');
+  const [revSortDirection, setRevSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const [expSortField, setExpSortField] = useState<'date' | 'description' | 'amount'>('date');
+  const [expSortDirection, setExpSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const [paySortField, setPaySortField] = useState<'date' | 'description' | 'amount'>('date');
+  const [paySortDirection, setPaySortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const toggleRevSort = (field: 'paymentDate' | 'guest' | 'gross') => {
+    if (revSortField === field) {
+      setRevSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setRevSortField(field);
+      setRevSortDirection('desc');
+    }
+  };
+
+  const toggleExpSort = (field: 'date' | 'description' | 'amount') => {
+    if (expSortField === field) {
+      setExpSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setExpSortField(field);
+      setExpSortDirection('desc');
+    }
+  };
+
+  const togglePaySort = (field: 'date' | 'description' | 'amount') => {
+    if (paySortField === field) {
+      setPaySortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setPaySortField(field);
+      setPaySortDirection('desc');
+    }
+  };
+
+  const sortedRevenue = useMemo(() => {
+    const items = [...revenue];
+    return items.sort((a, b) => {
+      let comparison = 0;
+      if (revSortField === 'paymentDate') {
+        comparison = (a.paymentDate || '').localeCompare(b.paymentDate || '');
+      } else if (revSortField === 'guest') {
+        comparison = (a.guest || '').localeCompare(b.guest || '');
+      } else if (revSortField === 'gross') {
+        comparison = (a.gross || 0) - (b.gross || 0);
+      }
+      return revSortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [revenue, revSortField, revSortDirection]);
+
+  const sortedExpenses = useMemo(() => {
+    const items = [...expenses];
+    return items.sort((a, b) => {
+      let comparison = 0;
+      if (expSortField === 'date') {
+        comparison = (a.date || '').localeCompare(b.date || '');
+      } else if (expSortField === 'description') {
+        comparison = (a.description || '').localeCompare(b.description || '');
+      } else if (expSortField === 'amount') {
+        comparison = (a.amount || 0) - (b.amount || 0);
+      }
+      return expSortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [expenses, expSortField, expSortDirection]);
+
+  const sortedPayments = useMemo(() => {
+    const items = [...payments];
+    return items.sort((a, b) => {
+      let comparison = 0;
+      if (paySortField === 'date') {
+        comparison = (a.date || '').localeCompare(b.date || '');
+      } else if (paySortField === 'description') {
+        comparison = (a.description || '').localeCompare(b.description || '');
+      } else if (paySortField === 'amount') {
+        comparison = (a.amount || 0) - (b.amount || 0);
+      }
+      return paySortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [payments, paySortField, paySortDirection]);
 
   useEffect(() => {
     // Real-time Properties
@@ -1228,17 +1309,32 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                                   type="checkbox" 
                                   className="rounded"
                                   checked={revenue.length > 0 && revenue.every(r => selectedIds.has(r.id))}
-                                  onChange={() => toggleSelectAll(revenue.map(r => r.id))}
+                                  onChange={() => toggleSelectAll(sortedRevenue.map(r => r.id))}
                                 />
                               </th>
-                              <th className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400">Date</th>
-                              <th className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400">Guest / Platform</th>
-                              <th className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 text-right">Gross</th>
+                              <th 
+                                onClick={() => toggleRevSort('paymentDate')} 
+                                className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                              >
+                                Date {revSortField === 'paymentDate' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
+                              </th>
+                              <th 
+                                onClick={() => toggleRevSort('guest')} 
+                                className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                              >
+                                Guest / Platform {revSortField === 'guest' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
+                              </th>
+                              <th 
+                                onClick={() => toggleRevSort('gross')} 
+                                className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 text-right cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                              >
+                                Gross {revSortField === 'gross' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
+                              </th>
                               <th className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 text-right"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-brand-slate-50">
-                            {revenue.map(r => {
+                            {sortedRevenue.map(r => {
                               const isEditing = editingId === r.id;
                               return (
                                 <tr key={r.id} className={cn("hover:bg-brand-slate-50/50", (selectedIds.has(r.id) || isEditing) && "bg-brand-slate-50")}>
@@ -1417,17 +1513,32 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                                   type="checkbox" 
                                   className="rounded"
                                   checked={expenses.length > 0 && expenses.every(e => selectedIds.has(e.id))}
-                                  onChange={() => toggleSelectAll(expenses.map(e => e.id))}
+                                  onChange={() => toggleSelectAll(sortedExpenses.map(e => e.id))}
                                 />
                               </th>
-                              <th className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400">Date</th>
-                              <th className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400">Description</th>
-                              <th className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 text-right">Amount</th>
+                              <th 
+                                onClick={() => toggleExpSort('date')} 
+                                className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                              >
+                                Date {expSortField === 'date' ? (expSortDirection === 'asc' ? '▲' : '▼') : ''}
+                              </th>
+                              <th 
+                                onClick={() => toggleExpSort('description')} 
+                                className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                              >
+                                Description {expSortField === 'description' ? (expSortDirection === 'asc' ? '▲' : '▼') : ''}
+                              </th>
+                              <th 
+                                onClick={() => toggleExpSort('amount')} 
+                                className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 text-right cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                              >
+                                Amount {expSortField === 'amount' ? (expSortDirection === 'asc' ? '▲' : '▼') : ''}
+                              </th>
                               <th className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 text-right"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-brand-slate-50">
-                            {expenses.map(e => {
+                            {sortedExpenses.map(e => {
                               const isEditing = editingId === e.id;
                               return (
                                 <tr key={e.id} className={cn("hover:bg-brand-slate-50/50", (selectedIds.has(e.id) || isEditing) && "bg-brand-slate-50")}>
@@ -1594,17 +1705,32 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                                   type="checkbox" 
                                   className="rounded"
                                   checked={payments.length > 0 && payments.every(p => selectedIds.has(p.id))}
-                                  onChange={() => toggleSelectAll(payments.map(p => p.id))}
+                                  onChange={() => toggleSelectAll(sortedPayments.map(p => p.id))}
                                 />
                               </th>
-                              <th className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400">Date</th>
-                              <th className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400">Description</th>
-                              <th className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 text-right">Amount</th>
+                              <th 
+                                onClick={() => togglePaySort('date')} 
+                                className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                              >
+                                Date {paySortField === 'date' ? (paySortDirection === 'asc' ? '▲' : '▼') : ''}
+                              </th>
+                              <th 
+                                onClick={() => togglePaySort('description')} 
+                                className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                              >
+                                Description {paySortField === 'description' ? (paySortDirection === 'asc' ? '▲' : '▼') : ''}
+                              </th>
+                              <th 
+                                onClick={() => togglePaySort('amount')} 
+                                className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 text-right cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                              >
+                                Amount {paySortField === 'amount' ? (paySortDirection === 'asc' ? '▲' : '▼') : ''}
+                              </th>
                               <th className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 text-right"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-brand-slate-50">
-                            {payments.map(p => {
+                            {sortedPayments.map(p => {
                               const isEditing = editingId === p.id;
                               return (
                                 <tr key={p.id} className={cn("hover:bg-brand-slate-50/50", (selectedIds.has(p.id) || isEditing) && "bg-brand-slate-50")}>

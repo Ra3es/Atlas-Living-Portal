@@ -73,11 +73,36 @@ export default function App() {
   useEffect(() => {
     const savedId = localStorage.getItem('atlas_logged_property_id');
     const savedPin = localStorage.getItem('atlas_logged_property_pin');
+    const proxyId = sessionStorage.getItem('atlas_admin_proxy_property_id');
     const targetId = route.propertyId;
 
     if (route.type === 'owner-dashboard' && targetId) {
       if (loggedProperty && loggedProperty.id === targetId) {
         // Already logged in as the correct target property, nothing to do
+        return;
+      }
+
+      // If we have an active admin proxy session
+      if (proxyId === targetId) {
+        const fetchProxyProperty = async () => {
+          setIsVerifyingSession(true);
+          try {
+            const docRef = doc(db, 'properties', targetId);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              const property = { ...docSnap.data(), id: docSnap.id } as Property;
+              setLoggedProperty(property);
+            } else {
+              setLoggedProperty(null);
+            }
+          } catch (e) {
+            console.error('Failed to restore admin proxy session:', e);
+            setLoggedProperty(null);
+          } finally {
+            setIsVerifyingSession(false);
+          }
+        };
+        fetchProxyProperty();
         return;
       }
 
@@ -145,6 +170,7 @@ export default function App() {
   const handleOwnerLogin = (property: Property) => {
     localStorage.setItem('atlas_logged_property_id', property.id);
     localStorage.setItem('atlas_logged_property_pin', property.pin);
+    sessionStorage.removeItem('atlas_admin_proxy_property_id');
     setLoggedProperty(property);
     window.location.hash = `#/owner/${property.id}`;
   };
@@ -152,6 +178,7 @@ export default function App() {
   const handleOwnerLogout = () => {
     localStorage.removeItem('atlas_logged_property_id');
     localStorage.removeItem('atlas_logged_property_pin');
+    sessionStorage.removeItem('atlas_admin_proxy_property_id');
     setLoggedProperty(null);
     window.location.hash = '#/';
     window.history.pushState(null, '', '/');
@@ -159,12 +186,14 @@ export default function App() {
   };
 
   const handleViewAsOwner = (property: Property) => {
-    // Admin proxy login (we do not save PIN in localStorage to prevent owner account hijacking)
+    // Admin proxy login (we use sessionStorage as a temporary bypass to prevent owner pin sync)
+    sessionStorage.setItem('atlas_admin_proxy_property_id', property.id);
     setLoggedProperty(property);
     window.location.hash = `#/owner/${property.id}`;
   };
 
   const handleReturnToAdmin = () => {
+    sessionStorage.removeItem('atlas_admin_proxy_property_id');
     setLoggedProperty(null);
     window.location.hash = '#/admin';
     window.history.pushState(null, '', '/admin');
