@@ -7,7 +7,36 @@ import { handleFirestoreError, cn, formatCurrency } from '../lib/utils';
 import { parseRevenueCSV, parseExpenseCSV, parseSettingsCSV, parsePaymentCSV } from '../services/csvService';
 import { Upload, Plus, Trash2, Key, LogOut, ChevronRight, FileText, Database, Eye, CreditCard, CheckCircle, Clock, AlertTriangle, MessageSquare, Pencil, Check, X, Settings, ListFilter, ArrowUpRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { format as dateFnsFormat, startOfMonth, endOfMonth, parseISO as dateFnsParseISO } from 'date-fns';
+
+const parseISO = (dateStr: string | undefined | null): Date => {
+  if (!dateStr) return new Date(NaN);
+  try {
+    const d = dateFnsParseISO(dateStr);
+    if (!isNaN(d.getTime())) return d;
+    const native = new Date(dateStr);
+    return native;
+  } catch {
+    return new Date(NaN);
+  }
+};
+
+const format = (date: Date | number | string, formatStr: string, fallback: string = '-'): string => {
+  try {
+    let dateObj: Date;
+    if (typeof date === 'string') {
+      dateObj = parseISO(date);
+    } else if (typeof date === 'number') {
+      dateObj = new Date(date);
+    } else {
+      dateObj = date;
+    }
+    if (!dateObj || isNaN(dateObj.getTime())) return fallback;
+    return dateFnsFormat(dateObj, formatStr);
+  } catch {
+    return fallback;
+  }
+};
 
 const ADMIN_EMAIL = 'raeellahi@gmail.com';
 
@@ -303,7 +332,7 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
     e.preventDefault();
     const form = e.currentTarget;
     const formData = new FormData(form);
-    const id = formData.get('id') as string;
+    const id = (formData.get('id') as string).trim().toUpperCase();
     const name = formData.get('name') as string;
     
     const newProperty: Property = {
@@ -1354,7 +1383,7 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                                         className="bg-white border border-brand-slate-200 rounded px-2 py-1 text-[10px] w-full"
                                         onBlur={(e) => handleUpdateRevenue(r.id, { paymentDate: e.target.value })}
                                       />
-                                    ) : r.paymentDate}
+                                    ) : (r.paymentDate ? format(parseISO(r.paymentDate), 'MMM dd, yyyy') : '-')}
                                   </td>
                                   <td className="px-4 py-3">
                                     {isEditing ? (
@@ -1558,7 +1587,7 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                                         className="bg-white border border-brand-slate-200 rounded px-2 py-1 text-[10px] w-full"
                                         onBlur={(val) => handleUpdateExpense(e.id, { date: val.target.value })}
                                       />
-                                    ) : e.date}
+                                    ) : (e.date ? format(parseISO(e.date), 'MMM dd, yyyy') : '-')}
                                   </td>
                                   <td className="px-4 py-3">
                                     {isEditing ? (
@@ -1750,7 +1779,7 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                                         className="bg-white border border-brand-slate-200 rounded px-2 py-1 text-[10px] w-full font-bold"
                                         onBlur={(e) => handleUpdatePayment(p.id, { date: e.target.value })}
                                       />
-                                    ) : p.date}
+                                    ) : (p.date ? format(parseISO(p.date), 'MMM dd, yyyy') : '-')}
                                   </td>
                                   <td className="px-4 py-3">
                                     {isEditing ? (
@@ -1972,7 +2001,7 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                                            className="bg-white border border-brand-slate-200 rounded px-2 py-1 text-[10px] w-full font-bold"
                                            onBlur={(e) => handleUpdateFee(f.id, { date: e.target.value })}
                                          />
-                                       ) : f.date}
+                                       ) : (f.date ? format(parseISO(f.date), 'MMM dd, yyyy') : '-')}
                                      </td>
                                      <td className="px-4 py-3 font-bold text-brand-slate-900 uppercase tracking-tight">
                                        {isEditing ? (
@@ -2121,7 +2150,7 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                           </tr>
                           {allFees.map(f => (
                             <tr key={f.id} className="group hover:bg-brand-slate-50 transition-colors">
-                              <td className="px-6 py-4 text-xs font-bold text-brand-slate-600">{f.date}</td>
+                              <td className="px-6 py-4 text-xs font-bold text-brand-slate-600">{f.date ? format(parseISO(f.date), 'MMM dd, yyyy') : '-'}</td>
                               <td className="px-6 py-4 text-right text-xs font-black text-brand-slate-900">
                                 {f.feeType === 'percent' ? `${f.percentage}%` : formatCurrency(f.amount)}
                               </td>

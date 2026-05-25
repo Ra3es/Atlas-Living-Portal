@@ -54,7 +54,7 @@ export function parseRevenueCSV(csvText: string, propertyId: string): Omit<Reven
   return records.map((r: any) => {
     const propId = getHeader(r, ['Property ID']) || propertyId;
     return {
-      propertyId: propId.toString().trim(),
+      propertyId: propId.toString().trim().toUpperCase(),
       paymentDate: parseCSVDate(getHeader(r, ['Payment Date'])),
       platform: getHeader(r, ['Platform']) || 'Direct',
       guest: getHeader(r, ['Guest']) || 'Guest',
@@ -77,7 +77,7 @@ export function parseExpenseCSV(csvText: string, propertyId: string): Omit<Expen
   return records.map((r: any) => {
     const propId = getHeader(r, ['Property ID']) || propertyId;
     return {
-      propertyId: propId.toString().trim(),
+      propertyId: propId.toString().trim().toUpperCase(),
       date: parseCSVDate(getHeader(r, ['Date'])),
       category: getHeader(r, ['Category']) || 'Other',
       supplier: getHeader(r, ['Supplier']) || 'N/A',
@@ -110,7 +110,7 @@ export function parsePaymentCSV(csvText: string, propertyId: string): Omit<Payme
     ].filter(Boolean).join(' - ');
 
     return {
-      propertyId: propId.toString().trim(),
+      propertyId: propId.toString().trim().toUpperCase(),
       date: parseCSVDate(getHeader(r, ['Date'])),
       amount: safeFloat(getHeader(r, ['Amount'])),
       description: combinedDesc,

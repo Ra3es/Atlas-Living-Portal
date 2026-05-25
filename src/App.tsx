@@ -21,23 +21,18 @@ export default function App() {
   const [loggedProperty, setLoggedProperty] = useState<Property | null>(null);
   const [isVerifyingSession, setIsVerifyingSession] = useState(false);
 
-  // Parse location hash or pathname into structured routes
+  // Parse location hash into structured routes
   function parseCurrentRoute(): RouteInfo {
     const hash = window.location.hash || '';
-    const pathname = window.location.pathname || '';
 
     // Route: Admin
-    if (hash === '#/admin' || hash === '#admin' || pathname === '/admin' || pathname === '/admin/') {
+    if (hash === '#/admin' || hash === '#admin') {
       return { type: 'admin', propertyId: null };
     }
 
-    // Route: Owner Dashboard with direct ID (e.g. #/owner/AL001 or /owner/AL001)
+    // Route: Owner Dashboard with direct ID (e.g. #/owner/AL001)
     if (hash.startsWith('#/owner/')) {
       const parts = hash.split('/');
-      return { type: 'owner-dashboard', propertyId: parts[2] || null };
-    }
-    if (pathname.startsWith('/owner/')) {
-      const parts = pathname.split('/');
       return { type: 'owner-dashboard', propertyId: parts[2] || null };
     }
 
@@ -181,7 +176,6 @@ export default function App() {
     sessionStorage.removeItem('atlas_admin_proxy_property_id');
     setLoggedProperty(null);
     window.location.hash = '#/';
-    window.history.pushState(null, '', '/');
     window.dispatchEvent(new Event('popstate'));
   };
 
@@ -196,7 +190,6 @@ export default function App() {
     sessionStorage.removeItem('atlas_admin_proxy_property_id');
     setLoggedProperty(null);
     window.location.hash = '#/admin';
-    window.history.pushState(null, '', '/admin');
     window.dispatchEvent(new Event('popstate'));
   };
 

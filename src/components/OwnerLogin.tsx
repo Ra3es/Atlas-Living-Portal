@@ -207,8 +207,7 @@ export default function OwnerLogin({ propertyId, onLogin }: OwnerLoginProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    window.location.hash = '';
-                    window.history.pushState(null, '', '/');
+                    window.location.hash = '#/';
                     window.dispatchEvent(new Event('popstate'));
                   }}
                   className="w-full flex items-center justify-center gap-1 text-brand-slate-400 hover:text-brand-slate-600 border border-dashed border-brand-slate-200 hover:border-brand-slate-300 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all"

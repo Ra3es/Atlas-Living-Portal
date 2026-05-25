@@ -8,8 +8,48 @@ import {
   LineChart, Line, PieChart as RechartsPieChart, Pie, Cell
 } from 'recharts';
 import { Calendar, Download, TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, PieChart, LayoutDashboard, ListFilter, CreditCard, Receipt, Home, Clock, AlertTriangle, CheckCircle, FileText } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
+import { format as dateFnsFormat, startOfMonth, endOfMonth, isWithinInterval as dateFnsIsWithinInterval, parseISO as dateFnsParseISO } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
+
+const parseISO = (dateStr: string | undefined | null): Date => {
+  if (!dateStr) return new Date(NaN);
+  try {
+    const d = dateFnsParseISO(dateStr);
+    if (!isNaN(d.getTime())) return d;
+    const native = new Date(dateStr);
+    return native;
+  } catch {
+    return new Date(NaN);
+  }
+};
+
+const format = (date: Date | number | string, formatStr: string, fallback: string = '-'): string => {
+  try {
+    let dateObj: Date;
+    if (typeof date === 'string') {
+      dateObj = parseISO(date);
+    } else if (typeof date === 'number') {
+      dateObj = new Date(date);
+    } else {
+      dateObj = date;
+    }
+    if (!dateObj || isNaN(dateObj.getTime())) return fallback;
+    return dateFnsFormat(dateObj, formatStr);
+  } catch {
+    return fallback;
+  }
+};
+
+const isWithinInterval = (date: Date, interval: { start: Date; end: Date }): boolean => {
+  try {
+    if (!date || isNaN(date.getTime())) return false;
+    if (!interval.start || isNaN(interval.start.getTime())) return false;
+    if (!interval.end || isNaN(interval.end.getTime())) return false;
+    return dateFnsIsWithinInterval(date, interval);
+  } catch {
+    return false;
+  }
+};
 
 interface OwnerDashboardProps {
   property: Property;
@@ -58,27 +98,27 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
 
         const revenueQ = query(collection(db, 'revenue'), where('propertyId', '==', initialProperty.id));
         unsubRev = onSnapshot(revenueQ, (snap) => {
-          setRevenue(snap.docs.map(doc => doc.data() as RevenueLog).sort((a,b) => b.paymentDate.localeCompare(a.paymentDate)));
+          setRevenue(snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as RevenueLog)).sort((a,b) => b.paymentDate.localeCompare(a.paymentDate)));
         });
 
         const expensesQ = query(collection(db, 'expenses'), where('propertyId', '==', initialProperty.id));
         unsubExp = onSnapshot(expensesQ, (snap) => {
-          setExpenses(snap.docs.map(doc => doc.data() as ExpenseLog).sort((a,b) => b.date.localeCompare(a.date)));
+          setExpenses(snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as ExpenseLog)).sort((a,b) => b.date.localeCompare(a.date)));
         });
 
         const feesQ = query(collection(db, 'fees'), where('propertyId', '==', initialProperty.id));
         unsubFees = onSnapshot(feesQ, (snap) => {
-          setFees(snap.docs.map(doc => doc.data() as CustomFee).sort((a,b) => b.date.localeCompare(a.date)));
+          setFees(snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as CustomFee)).sort((a,b) => b.date.localeCompare(a.date)));
         });
 
         const paymentsQ = query(collection(db, 'payments'), where('propertyId', '==', initialProperty.id));
         unsubPay = onSnapshot(paymentsQ, (snap) => {
-          setPayments(snap.docs.map(doc => doc.data() as PaymentRecord).sort((a,b) => b.date.localeCompare(a.date)));
+          setPayments(snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as PaymentRecord)).sort((a,b) => b.date.localeCompare(a.date)));
         });
 
         const maintenanceQ = query(collection(db, 'maintenance'), where('propertyId', '==', initialProperty.id));
         unsubMaint = onSnapshot(maintenanceQ, (snap) => {
-          setMaintenance(snap.docs.map(doc => doc.data() as MaintenanceIssue).sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0)));
+          setMaintenance(snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as MaintenanceIssue)).sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0)));
         });
 
       } catch (err) {
@@ -505,7 +545,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                     <div className="flex gap-4 mt-4 overflow-x-auto pb-2">
                       {filteredExpenses.slice(0, 4).map(e => (
                         <div key={e.id} className="flex-1 min-w-[140px] bg-brand-slate-50 p-3 rounded-xl border border-brand-slate-100">
-                          <div className="text-[9px] font-bold text-brand-slate-400 uppercase mb-1">{format(parseISO(e.date), 'MMM dd')}</div>
+                          <div className="text-[9px] font-bold text-brand-slate-400 uppercase mb-1">{format(parseISO(e.date), 'MMM dd, yyyy')}</div>
                           <div className="text-[10px] font-bold text-brand-slate-800 line-clamp-1">{e.description}</div>
                           <div className="text-xs font-extrabold text-brand-slate-900 mt-2">{formatCurrency(e.amount)}</div>
                         </div>
@@ -614,8 +654,8 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                         return (
                           <div key={item.id} className="flex justify-between items-center border-b border-brand-slate-50 pb-3 last:border-0">
                             <div>
-                              <div className="font-bold text-brand-slate-800 text-[11px] uppercase tracking-tight">Payment Received</div>
-                              <div className="text-[9px] text-brand-slate-500 font-medium">{format(parseISO(item.date), 'MMM dd')}</div>
+                              <div className="font-bold text-brand-slate-800 text-[11px] uppercase tracking-tight font-mono">Payment Received</div>
+                              <div className="text-[9px] text-brand-slate-500 font-medium">{format(parseISO(item.date), 'MMM dd, yyyy')}</div>
                             </div>
                             <div className="text-right">
                               <div className="font-black text-[11px] text-green-600">+{formatCurrency(item.amount)}</div>
@@ -634,7 +674,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                                   </a>
                                 )}
                               </div>
-                              <div className="text-[9px] text-brand-slate-500 font-medium">{format(parseISO(item.date), 'MMM dd')}</div>
+                              <div className="text-[9px] text-brand-slate-500 font-medium">{format(parseISO(item.date), 'MMM dd, yyyy')}</div>
                             </div>
                             <div className="text-right">
                               <div className="font-black text-[11px] text-red-600">-{formatCurrency(item.amount)}</div>
@@ -646,7 +686,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                           <div key={item.id} className="flex justify-between items-center border-b border-brand-slate-50 pb-3 last:border-0">
                             <div>
                                <div className="font-bold text-brand-slate-800 text-[11px] uppercase tracking-tight line-clamp-1">Booking: {item.guest}</div>
-                               <div className="text-[9px] text-brand-slate-500 font-medium">{format(parseISO(item.date), 'MMM dd')} • {item.platform}</div>
+                               <div className="text-[9px] text-brand-slate-500 font-medium">{format(parseISO(item.date), 'MMM dd, yyyy')} • {item.platform}</div>
                             </div>
                             <div className="text-right">
                                <div className="font-black text-[11px] text-brand-accent">+{formatCurrency(item.netRevenue)}</div>
