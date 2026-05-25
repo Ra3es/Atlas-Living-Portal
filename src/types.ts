@@ -3,11 +3,18 @@ export interface Property {
   name: string;
   ownerName: string;
   ownerEmail: string;
+  companyName?: string;
+  cellNumber?: string;
+  vatNumber?: string;
   managementFeePercent: number;
   managementFeeFixed: number;
   pin: string;
   createdAt: number;
   updatedAt: number;
+  imageUrl?: string;
+  location?: string;
+  description?: string;
+  links?: { platform: string; url: string; }[];
 }
 
 export interface RevenueLog {

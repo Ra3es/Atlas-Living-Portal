@@ -1076,29 +1076,214 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
 
                   </div>
 
-                {/* Tabs */}
-                <div className="flex gap-1 bg-brand-slate-100 p-1 rounded-xl w-fit">
-                  {[
-                    { id: 'fees', label: 'Management Fees' },
-                    { id: 'operations', label: 'Ops Center' },
-                    { id: 'revenue', label: 'Revenue' },
-                    { id: 'expenses', label: 'Expenses' },
-                    { id: 'payments', label: 'Payments' }
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id as any)}
-                      className={cn(
-                        "px-4 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-tight transition-all",
-                        activeTab === tab.id 
-                          ? "bg-white text-brand-slate-900 shadow-sm" 
-                          : "text-brand-slate-500 hover:text-brand-slate-700"
-                      )}
+                {/* Navigation */}
+                <div className="flex flex-col gap-4">
+                  <div className="hidden lg:flex gap-1 bg-brand-slate-100 p-1 rounded-xl w-fit">
+                    {[
+                      { id: 'config', label: 'Info' },
+                      { id: 'fees', label: 'Management Fees' },
+                      { id: 'operations', label: 'Ops Center' },
+                      { id: 'revenue', label: 'Revenue' },
+                      { id: 'expenses', label: 'Expenses' },
+                      { id: 'payments', label: 'Payments' }
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as any)}
+                        className={cn(
+                          "px-4 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-tight transition-all",
+                          activeTab === tab.id 
+                            ? "bg-white text-brand-slate-900 shadow-sm" 
+                            : "text-brand-slate-500 hover:text-brand-slate-700"
+                        )}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="lg:hidden">
+                    <select 
+                      value={activeTab}
+                      onChange={(e) => setActiveTab(e.target.value as any)}
+                      className="w-full bg-brand-slate-100 border-none rounded-xl px-4 py-3 text-xs font-bold uppercase tracking-widest text-brand-slate-900 outline-none"
                     >
-                      {tab.label}
-                    </button>
-                  ))}
+                      <option value="config">Info</option>
+                      <option value="fees">Management Fees</option>
+                      <option value="operations">Ops Center</option>
+                      <option value="revenue">Revenue</option>
+                      <option value="expenses">Expenses</option>
+                      <option value="payments">Payments</option>
+                    </select>
+                  </div>
                 </div>
+
+                {activeTab === 'config' && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="bento-card">
+                        <span className="bento-label mb-6 text-brand-accent">Property Information</span>
+                        <form onSubmit={async (e) => {
+                          e.preventDefault();
+                          const form = e.target as HTMLFormElement;
+                          const title = (form.elements.namedItem('title') as HTMLInputElement).value;
+                          const location = (form.elements.namedItem('location') as HTMLInputElement).value;
+                          const description = (form.elements.namedItem('description') as HTMLTextAreaElement).value;
+                          const imageUrl = (form.elements.namedItem('imageUrl') as HTMLInputElement).value;
+                          
+                          const updated = {
+                            ...selectedProperty,
+                            title,
+                            location,
+                            description,
+                            imageUrl,
+                            updatedAt: Date.now()
+                          };
+                          
+                          try {
+                            await setDoc(doc(db, 'properties', selectedProperty.id), updated);
+                            setSelectedProperty(updated);
+                            setMessage({ type: 'success', text: 'Property information updated' });
+                          } catch (err) {
+                            setMessage({ type: 'error', text: 'Failed to update property info' });
+                          }
+                        }} className="space-y-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-500">Property Title</label>
+                            <input name="title" defaultValue={selectedProperty.title || ''} type="text" className="w-full text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" placeholder="E.g. Beachside Villa" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-500">Location</label>
+                            <input name="location" defaultValue={selectedProperty.location || ''} type="text" className="w-full text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" placeholder="E.g. Cape Town, SA" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-500">Image URL</label>
+                            <input name="imageUrl" defaultValue={selectedProperty.imageUrl || ''} type="url" className="w-full text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" placeholder="https://..." />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-500">Description</label>
+                            <textarea name="description" defaultValue={selectedProperty.description || ''} rows={4} className="w-full text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" placeholder="Property details..."></textarea>
+                          </div>
+                          <div className="pt-2">
+                            <button type="submit" className="w-full py-3 bg-brand-slate-900 text-white rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-black transition-colors">
+                              Save Information
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+
+                      <div className="bento-card">
+                        <span className="bento-label mb-6 text-brand-accent">Platform Links</span>
+                        <div className="space-y-6">
+                          <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            const form = e.target as HTMLFormElement;
+                            const platform = (form.elements.namedItem('platform') as HTMLInputElement).value;
+                            const url = (form.elements.namedItem('url') as HTMLInputElement).value;
+                            if (!platform || !url) return;
+                            
+                            const newLinks = [...(selectedProperty.links || []), { platform, url }];
+                            const updated = { ...selectedProperty, links: newLinks, updatedAt: Date.now() };
+                            
+                            try {
+                              await setDoc(doc(db, 'properties', selectedProperty.id), updated);
+                              setSelectedProperty(updated);
+                              form.reset();
+                            } catch (err) {
+                              setMessage({ type: 'error', text: 'Failed to add link' });
+                            }
+                          }} className="flex gap-2">
+                            <input required name="platform" type="text" className="flex-1 text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" placeholder="Target Platform (e.g. Airbnb)" />
+                            <input required name="url" type="url" className="flex-[2] text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" placeholder="URL Link" />
+                            <button type="submit" className="px-4 py-3 bg-brand-slate-100 text-brand-slate-900 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-brand-slate-200 transition-colors">Add</button>
+                          </form>
+
+                          <div className="space-y-2">
+                            {(!selectedProperty.links || selectedProperty.links.length === 0) ? (
+                              <div className="text-center py-6 text-xs font-bold uppercase tracking-widest text-brand-slate-400">No platform links added</div>
+                            ) : (
+                              selectedProperty.links.map((link, idx) => (
+                                <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-brand-slate-100 bg-brand-slate-50/50">
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-bold text-brand-slate-900">{link.platform}</span>
+                                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-brand-slate-500 hover:text-brand-accent truncate max-w-[200px] sm:max-w-xs">{link.url}</a>
+                                  </div>
+                                  <button onClick={async () => {
+                                    const newLinks = selectedProperty.links!.filter((_, i) => i !== idx);
+                                    const updated = { ...selectedProperty, links: newLinks, updatedAt: Date.now() };
+                                    try {
+                                      await setDoc(doc(db, 'properties', selectedProperty.id), updated);
+                                      setSelectedProperty(updated);
+                                    } catch (err) {}
+                                  }} className="p-2 text-brand-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bento-card">
+                        <span className="bento-label mb-6 text-brand-accent">Owner Information</span>
+                        <form onSubmit={async (e) => {
+                          e.preventDefault();
+                          const form = e.target as HTMLFormElement;
+                          const ownerName = (form.elements.namedItem('ownerName') as HTMLInputElement).value;
+                          const companyName = (form.elements.namedItem('companyName') as HTMLInputElement).value;
+                          const ownerEmail = (form.elements.namedItem('ownerEmail') as HTMLInputElement).value;
+                          const cellNumber = (form.elements.namedItem('cellNumber') as HTMLInputElement).value;
+                          const vatNumber = (form.elements.namedItem('vatNumber') as HTMLInputElement).value;
+                          
+                          const updated = {
+                            ...selectedProperty,
+                            ownerName,
+                            companyName,
+                            ownerEmail,
+                            cellNumber,
+                            vatNumber,
+                            updatedAt: Date.now()
+                          };
+                          
+                          try {
+                            await setDoc(doc(db, 'properties', selectedProperty.id), updated);
+                            setSelectedProperty(updated);
+                            setMessage({ type: 'success', text: 'Owner information updated' });
+                          } catch (err) {
+                            setMessage({ type: 'error', text: 'Failed to update owner info' });
+                          }
+                        }} className="space-y-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-500">Owner Name</label>
+                            <input name="ownerName" required defaultValue={selectedProperty.ownerName || ''} type="text" className="w-full text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-500">Company Name (Optional)</label>
+                            <input name="companyName" defaultValue={selectedProperty.companyName || ''} type="text" className="w-full text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-500">Email Address</label>
+                            <input name="ownerEmail" required defaultValue={selectedProperty.ownerEmail || ''} type="email" className="w-full text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-500">Cell Number</label>
+                            <input name="cellNumber" defaultValue={selectedProperty.cellNumber || ''} type="text" className="w-full text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" placeholder="+27..." />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-500">VAT Number</label>
+                            <input name="vatNumber" defaultValue={selectedProperty.vatNumber || ''} type="text" className="w-full text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" />
+                          </div>
+                          <div className="pt-2">
+                            <button type="submit" className="w-full py-3 bg-brand-slate-900 text-white rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-black transition-colors">
+                              Save Owner Details
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {activeTab === 'operations' && (
                   <div className="space-y-6">
@@ -1496,12 +1681,15 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                         <span className="bento-label mb-6 text-red-500">Manual Entry</span>
                         <form onSubmit={handleAddExpense} className="space-y-4">
                           <input name="description" required placeholder="Description" className="w-full bg-brand-slate-50 border border-brand-slate-200 rounded-xl px-4 py-2 text-xs font-bold" />
-                          <select name="category" className="w-full bg-brand-slate-50 border border-brand-slate-200 rounded-xl px-4 py-2 text-xs font-bold">
-                            <option>Maintenance</option>
-                            <option>Utilities</option>
-                            <option>Repairs</option>
-                            <option>Other</option>
-                          </select>
+                          <input name="category" list="categories" required placeholder="Category (e.g. Maintenance)" className="w-full bg-brand-slate-50 border border-brand-slate-200 rounded-xl px-4 py-2 text-xs font-bold" />
+                          <datalist id="categories">
+                            <option value="Maintenance" />
+                            <option value="Utilities" />
+                            <option value="Repairs" />
+                            <option value="Cleaning" />
+                            <option value="Insurance" />
+                            <option value="Other" />
+                          </datalist>
                           <input name="amount" type="number" step="0.01" required placeholder="Amount" className="w-full bg-brand-slate-50 border border-brand-slate-200 rounded-xl px-4 py-2 text-xs font-bold" />
                           <input name="date" type="date" required className="w-full bg-brand-slate-50 border border-brand-slate-200 rounded-xl px-4 py-2 text-xs font-bold" />
                           <label className="flex items-center gap-2 px-2 pb-2">

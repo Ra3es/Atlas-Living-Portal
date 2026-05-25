@@ -66,7 +66,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
-  const [view, setView] = useState<'overview' | 'revenue' | 'expenses' | 'statement' | 'operations' | 'payments'>('overview');
+  const [view, setView] = useState<'overview' | 'revenue' | 'expenses' | 'statement' | 'operations' | 'payments' | 'info'>('overview');
   const contentRef = React.useRef<HTMLDivElement>(null);
   const [showNewTicketForm, setShowNewTicketForm] = useState(false);
 
@@ -413,6 +413,16 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
             <CreditCard size={16} />
             Payments
           </button>
+          <button 
+            onClick={() => setView('info')} 
+            className={cn(
+              "px-4 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
+              view === 'info' ? "bg-brand-slate-900 text-white shadow-sm" : "text-brand-slate-500 hover:bg-brand-slate-50 hover:text-brand-slate-900"
+            )}
+          >
+            <Home size={16} />
+            Info
+          </button>
         </nav>
 
         <div className="mt-auto flex flex-col gap-4">
@@ -459,27 +469,20 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
             </div>
           </div>
           
-          {/* Mobile Tab Bar */}
-          <div className="w-full flex items-center gap-2 bg-brand-slate-50 p-1 rounded-xl border border-brand-slate-100 overflow-x-auto no-scrollbar">
-             {[
-               { id: 'overview', label: 'Home', icon: LayoutDashboard },
-               { id: 'revenue', label: 'Rev', icon: TrendingUp },
-               { id: 'expenses', label: 'Exp', icon: Wallet },
-               { id: 'operations', label: 'Tickets', icon: Ticket },
-               { id: 'payments', label: 'Pay', icon: CreditCard }
-             ].map(tab => (
-               <button
-                 key={tab.id}
-                 onClick={() => setView(tab.id as any)}
-                 className={cn(
-                   "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
-                   view === tab.id ? "bg-white text-brand-slate-900 shadow-sm" : "text-brand-slate-400"
-                 )}
-               >
-                 <tab.icon size={12} />
-                 {tab.label}
-               </button>
-             ))}
+          {/* Mobile Menu */}
+          <div className="w-full">
+            <select 
+              value={view}
+              onChange={(e) => setView(e.target.value as any)}
+              className="w-full bg-brand-slate-50 border border-brand-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase tracking-widest text-brand-slate-900 outline-none"
+            >
+              <option value="overview">Overview</option>
+              <option value="revenue">Revenue</option>
+              <option value="expenses">Expenses</option>
+              <option value="operations">Tickets</option>
+              <option value="payments">Payments</option>
+              <option value="info">Info</option>
+            </select>
           </div>
         </header>
 
@@ -673,7 +676,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                             tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }} 
                             dy={10}
                           />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }} tickFormatter={(value) => 'R' + value.toLocaleString()} />
                           <Tooltip 
                             cursor={{ fill: '#f8fafc' }}
                             contentStyle={{ borderRadius: '1rem', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
@@ -1152,6 +1155,118 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
               </motion.div>
             )}
 
+
+            {view === 'info' && (
+              <motion.div
+                key="info-view"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+              >
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                  <h2 className="text-xl font-bold uppercase tracking-tight">Property Information</h2>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Property Details */}
+                  <div className="lg:col-span-8 space-y-6">
+                    <div className="bento-card overflow-hidden p-0 border border-brand-slate-200">
+                      {property.imageUrl ? (
+                        <div className="w-full h-48 md:h-72 bg-brand-slate-200 relative">
+                           <img src={property.imageUrl} alt={property.title || property.name} className="w-full h-full object-cover" />
+                           <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-black tracking-widest text-brand-slate-900 border border-white/20 uppercase shadow-lg">
+                             Verified Listing
+                           </div>
+                        </div>
+                      ) : (
+                        <div className="w-full h-48 bg-brand-slate-100 flex items-center justify-center">
+                          <Home size={32} className="text-brand-slate-300" />
+                        </div>
+                      )}
+                      
+                      <div className="p-6 md:p-8 bg-white">
+                        <h3 className="text-2xl md:text-3xl font-black text-brand-slate-900 mb-2 tracking-tight">
+                          {property.title || property.name}
+                        </h3>
+                        <div className="flex items-center gap-2 text-brand-slate-500 mb-6">
+                          <div className="w-2 h-2 rounded-full bg-brand-accent"></div>
+                          <span className="text-xs font-bold uppercase tracking-widest">{property.location || 'Location Not Set'}</span>
+                        </div>
+                        
+                        <div className="space-y-4">
+                           <h4 className="text-[10px] uppercase font-black tracking-widest text-brand-slate-400">About this property</h4>
+                           <p className="text-sm md:text-base text-brand-slate-600 leading-relaxed whitespace-pre-wrap">
+                             {property.description || 'No description available for this property yet. Please contact your property manager to update these details.'}
+                           </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Listings & Links */}
+                  <div className="lg:col-span-4 space-y-6">
+                    <div className="bento-card bg-white">
+                      <span className="bento-label mb-6">Linked Platforms</span>
+                      <div className="space-y-3">
+                        {(!property.links || property.links.length === 0) ? (
+                          <div className="text-center py-8 rounded-xl border border-dashed border-brand-slate-200 bg-brand-slate-50">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-400">No platforms linked</div>
+                          </div>
+                        ) : (
+                          property.links.map((link, idx) => (
+                            <a 
+                              key={idx} 
+                              href={link.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="group flex flex-col p-4 rounded-xl border border-brand-slate-100 bg-brand-slate-50 hover:bg-brand-slate-900 hover:border-brand-slate-900 transition-all cursor-pointer"
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-bold text-brand-slate-900 group-hover:text-white transition-colors">{link.platform}</span>
+                                <ArrowUpRight size={14} className="text-brand-slate-400 group-hover:text-white/50 transition-colors" />
+                              </div>
+                              <span className="text-[10px] font-medium text-brand-slate-500 truncate group-hover:text-brand-slate-300 transition-colors">{link.url}</span>
+                            </a>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="bento-card border-brand-accent/20 bg-brand-accent/5">
+                      <span className="bento-label text-brand-accent mb-6">Owner Information</span>
+                      <div className="space-y-4">
+                        <div>
+                          <div className="text-[9px] font-bold uppercase tracking-widest text-brand-slate-400">Primary Contact</div>
+                          <div className="text-sm font-bold text-brand-slate-900 mt-1">{property.ownerName}</div>
+                        </div>
+                        {property.companyName && (
+                          <div>
+                            <div className="text-[9px] font-bold uppercase tracking-widest text-brand-slate-400">Company</div>
+                            <div className="text-sm font-bold text-brand-slate-900 mt-1">{property.companyName}</div>
+                          </div>
+                        )}
+                        <div>
+                          <div className="text-[9px] font-bold uppercase tracking-widest text-brand-slate-400">Email Address</div>
+                          <div className="text-sm font-bold text-brand-slate-900 mt-1">{property.ownerEmail}</div>
+                        </div>
+                        {property.cellNumber && (
+                          <div>
+                            <div className="text-[9px] font-bold uppercase tracking-widest text-brand-slate-400">Cell Number</div>
+                            <div className="text-sm font-bold text-brand-slate-900 mt-1">{property.cellNumber}</div>
+                          </div>
+                        )}
+                        {property.vatNumber && (
+                          <div>
+                            <div className="text-[9px] font-bold uppercase tracking-widest text-brand-slate-400">VAT Number</div>
+                            <div className="text-sm font-bold text-brand-slate-900 mt-1">{property.vatNumber}</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
 
           </AnimatePresence>
         </div>
