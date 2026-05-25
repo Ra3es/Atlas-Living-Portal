@@ -31,5 +31,5 @@ jobs:
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
         local-dir: ./dist/
-        server-dir: /home/atlasliving/portal.atlasliving.co.za/
+        server-dir: portal.atlasliving.co.za/
         dangerous-clean-slate: true
