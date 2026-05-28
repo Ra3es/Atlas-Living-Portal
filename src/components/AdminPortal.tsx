@@ -5,7 +5,7 @@ import { collection, query, getDocs, setDoc, doc, deleteDoc, writeBatch, where, 
 import { Property, RevenueLog, ExpenseLog, CustomFee, PaymentRecord, OperationType, MaintenanceIssue } from '../types';
 import { handleFirestoreError, cn, formatCurrency, exportToCSV } from '../lib/utils';
 import { parseRevenueCSV, parseExpenseCSV, parseSettingsCSV, parsePaymentCSV } from '../services/csvService';
-import { Upload, Plus, Trash2, Key, LogOut, ChevronRight, ChevronLeft, FileText, Database, Eye, CreditCard, CheckCircle, Clock, AlertTriangle, MessageSquare, Pencil, Check, Calendar, X, Settings, ListFilter, ArrowUpRight } from 'lucide-react';
+import { Upload, Plus, Trash2, Key, LogOut, ChevronRight, ChevronLeft, FileText, Database, Eye, CreditCard, CheckCircle, Clock, AlertTriangle, MessageSquare, Pencil, Check, Calendar, X, Settings, ListFilter, ArrowUpRight, Home, TrendingUp, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format as dateFnsFormat, startOfMonth, endOfMonth, parseISO as dateFnsParseISO, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addDays, addMonths, subMonths } from 'date-fns';
 
@@ -317,11 +317,20 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
     }
   }
 
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   const handleLogin = async () => {
+    if (isLoggingIn) return;
+    setIsLoggingIn(true);
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
+        alert('Authentication failed: ' + error.message);
+      }
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -815,10 +824,11 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
           <p className="text-[#6C757D] mb-8">Secure portal for staff members only.</p>
           <button 
             onClick={handleLogin}
-            className="w-full bg-[#1A1A1A] text-white py-3 rounded-xl font-medium hover:bg-black transition-colors flex items-center justify-center gap-2"
+            disabled={isLoggingIn}
+            className="w-full bg-[#1A1A1A] text-white py-3 rounded-xl font-medium hover:bg-black transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Database size={18} />
-            Login with Google
+            {isLoggingIn ? 'Logging in...' : 'Login with Google'}
           </button>
         </div>
       </div>
@@ -2530,18 +2540,108 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
             )}
           </motion.div>
         ) : (
-            <div className="h-full min-h-[500px] flex flex-col items-center justify-center bg-white border-2 border-dashed border-brand-slate-200 rounded-[2rem] p-12 text-center">
-              <div className="w-20 h-20 bg-brand-slate-50 rounded-full flex items-center justify-center mb-6 text-brand-slate-200">
-                <Database size={40} />
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6 lg:space-y-8"
+            >
+              <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end">
+                <div>
+                  <h1 className="text-3xl font-black uppercase tracking-tight text-brand-slate-900 mb-2">Portfolio Overview</h1>
+                  <p className="text-xs font-bold text-brand-slate-400 tracking-widest uppercase">Select a property above to manage specific records</p>
+                </div>
               </div>
-              <h2 className="text-xl font-extrabold text-brand-slate-800 uppercase tracking-tight mb-2">Central Management</h2>
-              <p className="text-sm font-medium text-brand-slate-400 max-w-xs mx-auto mb-8">Select an active property from the inventory list to begin data reconciliation & management.</p>
-              <div className="flex gap-2">
-                <div className="w-2 h-2 rounded-full bg-brand-slate-200 animate-pulse"></div>
-                <div className="w-2 h-2 rounded-full bg-brand-slate-200 animate-pulse delay-100"></div>
-                <div className="w-2 h-2 rounded-full bg-brand-slate-200 animate-pulse delay-200"></div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white p-6 rounded-2xl border border-brand-slate-200 shadow-sm flex flex-col items-start gap-4">
+                  <div className="p-3 bg-brand-slate-100 rounded-xl text-brand-slate-900">
+                    <Home size={20} />
+                  </div>
+                  <div>
+                    <div className="text-3xl font-black tracking-tighter text-brand-slate-900">{properties.length}</div>
+                    <div className="text-[10px] uppercase font-bold tracking-widest text-brand-slate-400 mt-1">Active Properties</div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl border border-brand-slate-200 shadow-sm flex flex-col items-start gap-4">
+                  <div className="p-3 bg-green-100 rounded-xl text-green-700">
+                    <TrendingUp size={20} />
+                  </div>
+                  <div>
+                    <div className="text-3xl font-black tracking-tighter text-brand-slate-900">{allRevenue ? allRevenue.length : 0}</div>
+                    <div className="text-[10px] uppercase font-bold tracking-widest text-brand-slate-400 mt-1">All-Time Bookings</div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl border border-brand-slate-200 shadow-sm flex flex-col items-start gap-4">
+                  <div className="p-3 bg-brand-accent/10 rounded-xl text-brand-accent">
+                    <Users size={20} />
+                  </div>
+                  <div>
+                    <div className="text-3xl font-black tracking-tighter text-brand-slate-900">{new Set(properties.map(p => p.ownerEmail)).size}</div>
+                    <div className="text-[10px] uppercase font-bold tracking-widest text-brand-slate-400 mt-1">Unique Owners</div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl border border-brand-slate-200 shadow-sm flex flex-col items-start gap-4">
+                  <div className="p-3 bg-amber-100 rounded-xl text-amber-700">
+                    <Database size={20} />
+                  </div>
+                  <div>
+                    <div className="text-3xl font-black tracking-tighter text-brand-slate-900">{formatCurrency(allRevenue?.reduce((sum, r) => sum + (r.gross || 0), 0) || 0)}</div>
+                    <div className="text-[10px] uppercase font-bold tracking-widest text-brand-slate-400 mt-1">Gross Portfolio Value</div>
+                  </div>
+                </div>
               </div>
-            </div>
+
+              <div className="bento-card p-0 overflow-hidden shadow-sm border border-brand-slate-200">
+                <div className="p-6 border-b border-brand-slate-100 bg-white">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-brand-slate-900">Portfolio Properties</h3>
+                </div>
+                <div className="divide-y divide-brand-slate-100 max-h-[600px] overflow-y-auto">
+                  {properties.map(p => {
+                    const pRev = allRevenue?.filter(r => r.propertyId === p.id) || [];
+                    const pStats = { bookings: pRev.length, gross: pRev.reduce((sum, r) => sum + (r.gross || 0), 0) };
+                    return (
+                    <div key={p.id} className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-brand-slate-50 transition-colors bg-white">
+                      <div className="flex items-center gap-4">
+                        {p.imageUrl ? (
+                          <img src={p.imageUrl} alt={p.name} className="w-16 h-16 rounded-xl object-cover border border-brand-slate-200 shadow-sm" />
+                        ) : (
+                          <div className="w-16 h-16 rounded-xl bg-brand-slate-100 flex items-center justify-center text-brand-slate-300">
+                            <Home size={24} />
+                          </div>
+                        )}
+                        <div>
+                          <h4 className="text-sm font-black uppercase tracking-tight text-brand-slate-900">{p.name}</h4>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 mt-1">{p.ownerName} • <span className="font-mono">{p.id}</span></p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-6 justify-between md:justify-end">
+                        <div className="text-right">
+                          <div className="text-xs font-black text-brand-slate-900">{formatCurrency(pStats.gross)}</div>
+                          <div className="text-[9px] font-bold uppercase tracking-widest text-brand-slate-400 mt-1">{pStats.bookings} Bookings</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => setSelectedProperty(p)}
+                            className="bg-brand-slate-900 hover:bg-black text-white p-2.5 rounded-xl transition-all group"
+                          >
+                            <Settings size={14} className="group-hover:rotate-90 transition-transform" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )})}
+                  {properties.length === 0 && (
+                    <div className="p-12 text-center text-brand-slate-400">
+                      <Home size={32} className="mx-auto mb-4 opacity-50" />
+                      <p className="text-sm font-bold uppercase tracking-widest">No properties configured yet</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>

@@ -48,7 +48,11 @@ export default function OwnerLogin({ propertyId, onLogin }: OwnerLoginProps) {
     fetchProperty();
   }, [propertyId]);
 
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   const handleGoogleLogin = async () => {
+    if (loading || isLoggingIn) return;
+    setIsLoggingIn(true);
     setLoading(true);
     setError(null);
     try {
@@ -88,11 +92,12 @@ export default function OwnerLogin({ propertyId, onLogin }: OwnerLoginProps) {
         }
       }
     } catch (err: any) {
-      if (err.code !== 'auth/popup-closed-by-user') {
+      if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
         handleFirestoreError(err, OperationType.GET, 'properties');
         setError('Authentication failed. Please try again.');
       }
     } finally {
+      setIsLoggingIn(false);
       setLoading(false);
     }
   };

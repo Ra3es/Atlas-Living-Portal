@@ -383,7 +383,12 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
         <input 
           type="date" 
           value={startDate} 
-          onChange={(e) => setStartDate(e.target.value)}
+          max={endDate}
+          onChange={(e) => {
+            const val = e.target.value;
+            setStartDate(val);
+            if (val > endDate) setEndDate(val);
+          }}
           className="bg-transparent text-[10px] font-bold outline-none w-full text-brand-slate-700 cursor-pointer" 
         />
       </div>
@@ -391,8 +396,13 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
         <span className="text-[9px] font-black uppercase tracking-widest text-brand-slate-400 hidden sm:inline">To</span>
         <input 
           type="date" 
-          value={endDate} 
-          onChange={(e) => setEndDate(e.target.value)}
+          value={endDate}
+          min={startDate}
+          onChange={(e) => {
+            const val = e.target.value;
+            setEndDate(val);
+            if (val < startDate) setStartDate(val);
+          }}
           className="bg-transparent text-[10px] font-bold outline-none w-full text-brand-slate-700 cursor-pointer" 
         />
       </div>
