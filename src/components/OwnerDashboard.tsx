@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../lib/firebase';
 import { collection, query, where, getDocs, orderBy, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { Property, RevenueLog, ExpenseLog, CustomFee, PaymentRecord, OperationType, MaintenanceIssue } from '../types';
-import { handleFirestoreError, formatCurrency, cn } from '../lib/utils';
+import { handleFirestoreError, formatCurrency, cn, exportToCSV } from '../lib/utils';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   LineChart, Line, PieChart as RechartsPieChart, Pie, Cell
@@ -394,16 +394,6 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
             Expenses
           </button>
           <button 
-            onClick={() => setView('operations')} 
-            className={cn(
-              "px-4 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
-              view === 'operations' ? "bg-brand-slate-900 text-white shadow-sm" : "text-brand-slate-500 hover:bg-brand-slate-50 hover:text-brand-slate-900"
-            )}
-          >
-            <Ticket size={16} />
-            Tickets
-          </button>
-          <button 
             onClick={() => setView('payments')} 
             className={cn(
               "px-4 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
@@ -412,6 +402,16 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
           >
             <CreditCard size={16} />
             Payments
+          </button>
+          <button 
+            onClick={() => setView('operations')} 
+            className={cn(
+              "px-4 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
+              view === 'operations' ? "bg-brand-slate-900 text-white shadow-sm" : "text-brand-slate-500 hover:bg-brand-slate-50 hover:text-brand-slate-900"
+            )}
+          >
+            <Ticket size={16} />
+            Operations
           </button>
           <button 
             onClick={() => setView('info')} 
@@ -479,8 +479,8 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
               <option value="overview">Overview</option>
               <option value="revenue">Revenue</option>
               <option value="expenses">Expenses</option>
-              <option value="operations">Tickets</option>
               <option value="payments">Payments</option>
+              <option value="operations">Operations</option>
               <option value="info">Info</option>
             </select>
           </div>
@@ -1033,7 +1033,25 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
               >
                 <div className="flex items-center justify-between mb-8">
                   <span className="bento-label">Revenue Breakdown</span>
-                  <button onClick={() => setView('overview')} className="text-xs font-bold text-brand-slate-500 hover:text-brand-slate-900 transition-colors uppercase tracking-widest">Back to Dashboard</button>
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => {
+                        const csvData = sortedRevLogs.map(log => ({
+                          Date: log.paymentDate,
+                          Guest: log.guest,
+                          Platform: log.platform,
+                          Gross: log.gross,
+                          Fees: log.fees,
+                          Net: log.gross - log.fees
+                        }));
+                        exportToCSV(csvData, `revenue_${startDate}_${endDate}`);
+                      }} 
+                      className="text-xs font-bold text-brand-slate-500 hover:text-brand-slate-900 transition-colors uppercase tracking-widest flex items-center gap-1"
+                    >
+                      <Download size={14} /> Export CSV
+                    </button>
+                    <button onClick={() => setView('overview')} className="text-xs font-bold text-brand-slate-500 hover:text-brand-slate-900 transition-colors uppercase tracking-widest">Back to Dashboard</button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto no-scrollbar">
                     <table className="w-full text-left min-w-[600px]">
@@ -1103,7 +1121,24 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                       </div>
                     )}
                   </div>
-                  <button onClick={() => setView('overview')} className="text-xs font-bold text-brand-slate-500 hover:text-brand-slate-900 transition-colors uppercase tracking-widest">Back to Dashboard</button>
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => {
+                        const csvData = sortedExpLogs.map(log => ({
+                          Date: log.date,
+                          Description: log.description,
+                          Category: log.category,
+                          Amount: log.amount,
+                          Reimbursable: log.reimbursable ? 'Yes' : 'No'
+                        }));
+                        exportToCSV(csvData, `expenses_${startDate}_${endDate}`);
+                      }} 
+                      className="text-xs font-bold text-brand-slate-500 hover:text-brand-slate-900 transition-colors uppercase tracking-widest flex items-center gap-1"
+                    >
+                      <Download size={14} /> Export CSV
+                    </button>
+                    <button onClick={() => setView('overview')} className="text-xs font-bold text-brand-slate-500 hover:text-brand-slate-900 transition-colors uppercase tracking-widest">Back to Dashboard</button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto no-scrollbar">
                     <table className="w-full text-left min-w-[600px]">

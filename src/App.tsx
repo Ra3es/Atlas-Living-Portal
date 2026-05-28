@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db, onAuthStateChanged, auth, testConnection } from './lib/firebase';
+import { signOut } from 'firebase/auth';
 import AdminPortal from './components/AdminPortal';
 import OwnerLogin from './components/OwnerLogin';
 import OwnerDashboard from './components/OwnerDashboard';
@@ -20,6 +21,7 @@ export default function App() {
   const [route, setRoute] = useState<RouteInfo>(() => parseCurrentRoute());
   const [loggedProperty, setLoggedProperty] = useState<Property | null>(null);
   const [isVerifyingSession, setIsVerifyingSession] = useState(false);
+  const [authUser, setAuthUser] = useState<any>(null);
 
   // Parse location hash into structured routes
   function parseCurrentRoute(): RouteInfo {
@@ -52,9 +54,7 @@ export default function App() {
     window.addEventListener('hashchange', handleRouteChange);
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user?.email === 'raeellahi@gmail.com') {
-        // Admin logged in
-      }
+      setAuthUser(user);
     });
 
     return () => {
@@ -67,7 +67,6 @@ export default function App() {
   // Sync route shifts (e.g. clicking direct link while active) with loggedIn property context
   useEffect(() => {
     const savedId = localStorage.getItem('atlas_logged_property_id');
-    const savedPin = localStorage.getItem('atlas_logged_property_pin');
     const proxyId = sessionStorage.getItem('atlas_admin_proxy_property_id');
     const targetId = route.propertyId;
 
@@ -102,7 +101,7 @@ export default function App() {
       }
 
       // If we have saved credentials that match the requested property, restore session
-      if (savedId === targetId && savedPin) {
+      if (savedId === targetId && authUser?.email) {
         const autoAuthenticate = async () => {
           setIsVerifyingSession(true);
           try {
@@ -110,7 +109,7 @@ export default function App() {
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
               const property = { ...docSnap.data(), id: docSnap.id } as Property;
-              if (property.pin === savedPin) {
+              if (property.ownerEmail.toLowerCase() === authUser.email.toLowerCase()) {
                 setLoggedProperty(property);
               } else {
                 setLoggedProperty(null);
@@ -133,7 +132,7 @@ export default function App() {
       }
     } else if (route.type === 'owner-login') {
       // If we clicked to main portal, check if there's any active cached session to restore
-      if (savedId && savedPin) {
+      if (savedId && authUser?.email) {
         const autoAuthenticate = async () => {
           setIsVerifyingSession(true);
           try {
@@ -141,7 +140,7 @@ export default function App() {
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
               const property = { ...docSnap.data(), id: docSnap.id } as Property;
-              if (property.pin === savedPin) {
+              if (property.ownerEmail.toLowerCase() === authUser.email.toLowerCase()) {
                 setLoggedProperty(property);
                 // Sync URL path to show owner dashboard route
                 window.location.hash = `#/owner/${property.id}`;
@@ -160,21 +159,20 @@ export default function App() {
     } else {
       setLoggedProperty(null);
     }
-  }, [route.type, route.propertyId]);
+  }, [route.type, route.propertyId, authUser]);
 
   const handleOwnerLogin = (property: Property) => {
     localStorage.setItem('atlas_logged_property_id', property.id);
-    localStorage.setItem('atlas_logged_property_pin', property.pin);
     sessionStorage.removeItem('atlas_admin_proxy_property_id');
     setLoggedProperty(property);
     window.location.hash = `#/owner/${property.id}`;
   };
 
-  const handleOwnerLogout = () => {
+  const handleOwnerLogout = async () => {
     localStorage.removeItem('atlas_logged_property_id');
-    localStorage.removeItem('atlas_logged_property_pin');
     sessionStorage.removeItem('atlas_admin_proxy_property_id');
     setLoggedProperty(null);
+    await signOut(auth);
     window.location.hash = '#/';
     window.dispatchEvent(new Event('popstate'));
   };
@@ -213,7 +211,7 @@ export default function App() {
           {route.type === 'owner-dashboard' && loggedProperty && loggedProperty.id === route.propertyId && (
             <OwnerDashboard 
               property={loggedProperty} 
-              onLogout={auth.currentUser?.email === 'raeellahi@gmail.com' ? handleReturnToAdmin : handleOwnerLogout} 
+              onLogout={authUser?.email === 'raeellahi@gmail.com' ? handleReturnToAdmin : handleOwnerLogout} 
             />
           )}
 

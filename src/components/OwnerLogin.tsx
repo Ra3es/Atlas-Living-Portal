@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
+import { auth, googleProvider, db } from '../lib/firebase';
+import { signInWithPopup } from 'firebase/auth';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { Property, OperationType } from '../types';
 import { handleFirestoreError } from '../lib/utils';
-import { ShieldCheck, ArrowRight, Key, Sparkles, Building2, ChevronLeft } from 'lucide-react';
+import { ShieldCheck, ArrowRight, Building2, ChevronLeft, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface OwnerLoginProps {
@@ -12,11 +13,12 @@ interface OwnerLoginProps {
 }
 
 export default function OwnerLogin({ propertyId, onLogin }: OwnerLoginProps) {
-  const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [targetProperty, setTargetProperty] = useState<Property | null>(null);
   const [fetchingTarget, setFetchingTarget] = useState(false);
+  const [matchingProperties, setMatchingProperties] = useState<Property[]>([]);
+  const [selectingProperty, setSelectingProperty] = useState(false);
 
   useEffect(() => {
     if (!propertyId) {
@@ -46,34 +48,50 @@ export default function OwnerLogin({ propertyId, onLogin }: OwnerLoginProps) {
     fetchProperty();
   }, [propertyId]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pin.length < 4) return;
-    
+  const handleGoogleLogin = async () => {
     setLoading(true);
     setError(null);
-    
     try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      
+      if (!user.email) {
+        setError('Could not retrieve email from Google Account.');
+        setLoading(false);
+        return;
+      }
+
       if (targetProperty) {
-        if (targetProperty.pin === pin) {
+        // If we are logging into a specific property
+        if (targetProperty.ownerEmail.toLowerCase() === user.email.toLowerCase()) {
           onLogin(targetProperty);
         } else {
-          setError('Verification failed. Invalid access code.');
+          setError(`Account ${user.email} is not authorized for this portfolio.`);
         }
       } else {
-        const q = query(collection(db, 'properties'), where('pin', '==', pin), limit(1));
+        // Logging into main portal, find their properties
+        const q = query(
+          collection(db, 'properties'), 
+          where('ownerEmail', '==', user.email)
+        );
         const snapshot = await getDocs(q);
         
         if (snapshot.empty) {
-          setError('Verification failed. Invalid access code.');
-        } else {
+          setError(`No portfolios found for ${user.email}.`);
+        } else if (snapshot.docs.length === 1) {
           const property = snapshot.docs[0].data() as Property;
           onLogin(property);
+        } else {
+          const properties = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Property));
+          setMatchingProperties(properties);
+          setSelectingProperty(true);
         }
       }
-    } catch (err) {
-      handleFirestoreError(err, OperationType.GET, 'properties');
-      setError('System connection error. Please try again.');
+    } catch (err: any) {
+      if (err.code !== 'auth/popup-closed-by-user') {
+        handleFirestoreError(err, OperationType.GET, 'properties');
+        setError('Authentication failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -98,7 +116,7 @@ export default function OwnerLogin({ propertyId, onLogin }: OwnerLoginProps) {
             transition={{ delay: 0.2 }}
             className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-brand-slate-900 rounded-2xl mb-6 sm:mb-8 shadow-2xl shadow-brand-slate-900/20"
           >
-            <ShieldCheck className="text-brand-accent" size={24} sm:size={32} strokeWidth={1.5} />
+            <ShieldCheck className="text-brand-accent" size={24} strokeWidth={1.5} />
           </motion.div>
           
           <motion.h1 
@@ -130,8 +148,45 @@ export default function OwnerLogin({ propertyId, onLogin }: OwnerLoginProps) {
               <div className="w-8 h-8 border-4 border-brand-slate-100 border-t-brand-accent rounded-full animate-spin" />
               <div className="text-[10px] font-black uppercase text-brand-slate-400 tracking-widest">Locating Property...</div>
             </div>
+          ) : selectingProperty ? (
+            <div className="space-y-6 sm:space-y-8">
+              <div className="text-center">
+                <div className="text-[10px] font-black uppercase tracking-widest text-brand-slate-400 mb-2">Multiple Properties Found</div>
+                <h3 className="text-sm font-bold text-brand-slate-900">Select Portfolio</h3>
+              </div>
+              <div className="space-y-3">
+                {matchingProperties.map(prop => (
+                  <button
+                    key={prop.id}
+                    onClick={() => onLogin(prop)}
+                    className="w-full bg-brand-slate-50 border border-brand-slate-100 hover:border-brand-slate-900 p-4 rounded-2xl flex items-center justify-between group transition-all"
+                  >
+                    <div className="flex items-center gap-3 text-left">
+                      <div className="w-10 h-10 rounded-xl bg-brand-slate-900 flex items-center justify-center text-brand-accent shrink-0 group-hover:scale-105 transition-transform">
+                        <Building2 size={18} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-brand-slate-950">{prop.name}</div>
+                        <div className="text-[9px] font-bold uppercase tracking-widest text-brand-slate-400 mt-0.5">{prop.id}</div>
+                      </div>
+                    </div>
+                    <ArrowRight size={16} className="text-brand-slate-300 group-hover:text-brand-slate-900 group-hover:translate-x-1 transition-all" />
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectingProperty(false);
+                }}
+                className="w-full flex items-center justify-center gap-1 text-brand-slate-400 hover:text-brand-slate-600 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all"
+              >
+                <ChevronLeft size={10} />
+                Back to Login
+              </button>
+            </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
+            <div className="space-y-6 sm:space-y-8">
               {targetProperty && (
                 <div className="bg-brand-slate-50 border border-brand-slate-100 p-4 rounded-2xl flex items-center gap-3">
                   <div className="w-8 h-8 rounded-xl bg-brand-slate-900 flex items-center justify-center text-brand-accent shrink-0">
@@ -144,36 +199,13 @@ export default function OwnerLogin({ propertyId, onLogin }: OwnerLoginProps) {
                 </div>
               )}
 
-              <div className="space-y-3 sm:space-y-4">
-                <div className="flex items-center justify-between px-1">
-                  <label className="text-[9px] sm:text-[10px] font-black text-brand-slate-900 uppercase tracking-widest opacity-30">Access PIN</label>
-                  <div className="flex items-center gap-1.5 text-[8px] sm:text-[9px] font-bold text-brand-slate-400 uppercase tracking-tighter">
-                    <Key size={9} sm:size={10} />
-                    Encrypted
-                  </div>
-                </div>
-                
-                <div className="relative group">
-                  <input 
-                    type="password"
-                    value={pin}
-                    onChange={(e) => setPin(e.target.value)}
-                    placeholder="••••••"
-                    className="w-full text-center text-3xl sm:text-4xl font-mono tracking-[0.4em] py-4 sm:py-6 bg-brand-slate-50 border border-brand-slate-100 rounded-2xl sm:rounded-3xl focus:border-brand-accent focus:bg-white focus:ring-4 focus:ring-brand-accent/5 outline-none transition-all placeholder:text-brand-slate-200"
-                    maxLength={8}
-                    autoFocus
-                  />
-                  <div className="absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-transparent via-brand-accent/50 to-transparent scale-x-0 group-focus-within:scale-x-100 transition-transform duration-500" />
-                </div>
-              </div>
-
               <AnimatePresence mode="wait">
                 {error && (
                   <motion.div 
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="bg-red-50 border border-red-100 p-3 rounded-2xl flex items-center gap-3"
+                    className="bg-red-50 border border-red-100 p-3 rounded-2xl flex items-center gap-3 overflow-hidden"
                   >
                     <div className="w-6 h-6 bg-red-100 rounded-lg flex items-center justify-center shrink-0">
                       <Sparkles className="text-red-600" size={12} />
@@ -186,8 +218,8 @@ export default function OwnerLogin({ propertyId, onLogin }: OwnerLoginProps) {
               </AnimatePresence>
 
               <button 
-                type="submit"
-                disabled={loading || pin.length < 4 || (!!propertyId && !targetProperty)}
+                onClick={handleGoogleLogin}
+                disabled={loading || (!!propertyId && !targetProperty)}
                 className="w-full bg-brand-slate-900 text-white py-4 sm:py-5 rounded-2xl sm:rounded-3xl font-black uppercase tracking-widest text-[11px] sm:text-xs flex items-center justify-center gap-4 hover:bg-black hover:shadow-xl hover:shadow-brand-slate-900/20 active:scale-[0.98] transition-all disabled:opacity-20 disabled:cursor-not-allowed group"
               >
                 {loading ? (
@@ -197,8 +229,13 @@ export default function OwnerLogin({ propertyId, onLogin }: OwnerLoginProps) {
                   </div>
                 ) : (
                   <>
-                    <span>Initialize Dashboard</span>
-                    <ArrowRight size={16} sm:size={18} className="group-hover:translate-x-1 transition-transform" />
+                    <svg className="w-5 h-5 bg-white rounded-full p-1 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                      <path fill="#EA4335" d="M5.266 9.765A7.077 7.077 0 0112 4.909c1.69 0 3.218.6 4.418 1.582L19.91 3C17.782 1.145 15.055 0 12 0 7.27 0 3.198 2.698 1.24 6.65l4.026 3.115z"/>
+                      <path fill="#34A853" d="M16.04 18.013c-1.09.703-2.474 1.078-4.04 1.078a7.077 7.077 0 01-6.723-4.823l-4.04 3.067A11.965 11.965 0 0012 24c2.933 0 5.735-1.043 7.834-3l-3.793-2.987z"/>
+                      <path fill="#4A90E2" d="M19.834 21c2.195-2.048 3.62-5.096 3.62-9 0-.71-.109-1.473-.272-2.182H12v4.637h6.436c-.317 1.559-1.17 2.766-2.395 3.558L19.834 21z"/>
+                      <path fill="#FBBC05" d="M5.277 14.268A7.12 7.12 0 014.909 12c0-.782.125-1.533.357-2.235L1.24 6.65A11.934 11.934 0 000 12c0 1.92.445 3.73 1.237 5.335l4.04-3.067z"/>
+                    </svg>
+                    <span>Sign in with Google</span>
                   </>
                 )}
               </button>
@@ -216,7 +253,7 @@ export default function OwnerLogin({ propertyId, onLogin }: OwnerLoginProps) {
                   Main Login Portal
                 </button>
               )}
-            </form>
+            </div>
           )}
         </motion.div>
 

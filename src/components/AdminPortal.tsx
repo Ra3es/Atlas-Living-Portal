@@ -3,7 +3,7 @@ import { db, auth, googleProvider } from '../lib/firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { collection, query, getDocs, setDoc, doc, deleteDoc, writeBatch, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { Property, RevenueLog, ExpenseLog, CustomFee, PaymentRecord, OperationType, MaintenanceIssue } from '../types';
-import { handleFirestoreError, cn, formatCurrency } from '../lib/utils';
+import { handleFirestoreError, cn, formatCurrency, exportToCSV } from '../lib/utils';
 import { parseRevenueCSV, parseExpenseCSV, parseSettingsCSV, parsePaymentCSV } from '../services/csvService';
 import { Upload, Plus, Trash2, Key, LogOut, ChevronRight, FileText, Database, Eye, CreditCard, CheckCircle, Clock, AlertTriangle, MessageSquare, Pencil, Check, X, Settings, ListFilter, ArrowUpRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -1512,7 +1512,25 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                             </button>
                           )}
                         </div>
-                        <span className="text-[10px] font-bold text-brand-slate-400">{revenue.length} items</span>
+                        <div className="flex items-center gap-4">
+                          <button
+                            onClick={() => {
+                              const csvData = sortedRevenue.map(log => ({
+                                Date: log.paymentDate,
+                                Guest: log.guest,
+                                Platform: log.platform,
+                                Gross: log.gross,
+                                Fees: log.fees,
+                                Net: log.gross - log.fees
+                              }));
+                              exportToCSV(csvData, `revenue-${selectedProperty.id}`);
+                            }}
+                            className="text-[10px] font-bold text-brand-slate-500 hover:text-brand-slate-900 border border-brand-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 uppercase tracking-widest transition-colors"
+                          >
+                            <FileText size={12} /> Export
+                          </button>
+                          <span className="text-[10px] font-bold text-brand-slate-400">{revenue.length} items</span>
+                        </div>
                       </div>
                       <div className="overflow-x-auto max-h-[500px]">
                         <table className="w-full text-left text-xs">
@@ -1719,7 +1737,25 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                             </button>
                           )}
                         </div>
-                        <span className="text-[10px] font-bold text-brand-slate-400">{expenses.length} items</span>
+                        <div className="flex items-center gap-4">
+                          <button
+                            onClick={() => {
+                              const csvData = sortedExpenses.map(log => ({
+                                Date: log.date,
+                                Description: log.description,
+                                Category: log.category,
+                                Supplier: log.supplier,
+                                Amount: log.amount,
+                                Reimbursable: log.reimbursable ? 'Yes' : 'No'
+                              }));
+                              exportToCSV(csvData, `expenses-${selectedProperty.id}`);
+                            }}
+                            className="text-[10px] font-bold text-brand-slate-500 hover:text-brand-slate-900 border border-brand-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 uppercase tracking-widest transition-colors"
+                          >
+                            <FileText size={12} /> Export
+                          </button>
+                          <span className="text-[10px] font-bold text-brand-slate-400">{expenses.length} items</span>
+                        </div>
                       </div>
                       <div className="overflow-x-auto max-h-[500px]">
                         <table className="w-full text-left text-xs">
