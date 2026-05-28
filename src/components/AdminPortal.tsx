@@ -5,9 +5,9 @@ import { collection, query, getDocs, setDoc, doc, deleteDoc, writeBatch, where, 
 import { Property, RevenueLog, ExpenseLog, CustomFee, PaymentRecord, OperationType, MaintenanceIssue } from '../types';
 import { handleFirestoreError, cn, formatCurrency, exportToCSV } from '../lib/utils';
 import { parseRevenueCSV, parseExpenseCSV, parseSettingsCSV, parsePaymentCSV } from '../services/csvService';
-import { Upload, Plus, Trash2, Key, LogOut, ChevronRight, FileText, Database, Eye, CreditCard, CheckCircle, Clock, AlertTriangle, MessageSquare, Pencil, Check, X, Settings, ListFilter, ArrowUpRight } from 'lucide-react';
+import { Upload, Plus, Trash2, Key, LogOut, ChevronRight, ChevronLeft, FileText, Database, Eye, CreditCard, CheckCircle, Clock, AlertTriangle, MessageSquare, Pencil, Check, Calendar, X, Settings, ListFilter, ArrowUpRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { format as dateFnsFormat, startOfMonth, endOfMonth, parseISO as dateFnsParseISO } from 'date-fns';
+import { format as dateFnsFormat, startOfMonth, endOfMonth, parseISO as dateFnsParseISO, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addDays, addMonths, subMonths } from 'date-fns';
 
 const parseISO = (dateStr: string | undefined | null): Date => {
   if (!dateStr) return new Date(NaN);
@@ -60,7 +60,8 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showPropertySelector, setShowPropertySelector] = useState(false);
   const [showAddProperty, setShowAddProperty] = useState(false);
-  const [activeTab, setActiveTab] = useState<'config' | 'revenue' | 'expenses' | 'payments' | 'fees' | 'operations'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'revenue' | 'expenses' | 'payments' | 'fees' | 'operations' | 'calendar'>('config');
+  const [calendarMonth, setCalendarMonth] = useState(startOfMonth(new Date()));
   const [feeView, setFeeView] = useState<'individual' | 'spreadsheet'>('individual');
   const [entryFeeType, setEntryFeeType] = useState<'fixed' | 'percent'>('fixed');
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -521,6 +522,7 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
       guest: formData.get('guest') as string,
       platform: formData.get('platform') as string,
       cleanings: 0,
+      nights: parseInt(formData.get('nights') as string) || 0,
       gross: parseFloat(formData.get('gross') as string) || 0,
       fees: parseFloat(formData.get('fees') as string) || 0,
       netRevenue: 0, // Calculated below
@@ -1083,6 +1085,7 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                       { id: 'config', label: 'Info' },
                       { id: 'fees', label: 'Management Fees' },
                       { id: 'operations', label: 'Ops Center' },
+                      { id: 'calendar', label: 'Calendar' },
                       { id: 'revenue', label: 'Revenue' },
                       { id: 'expenses', label: 'Expenses' },
                       { id: 'payments', label: 'Payments' }
@@ -1111,6 +1114,7 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                       <option value="config">Info</option>
                       <option value="fees">Management Fees</option>
                       <option value="operations">Ops Center</option>
+                      <option value="calendar">Calendar</option>
                       <option value="revenue">Revenue</option>
                       <option value="expenses">Expenses</option>
                       <option value="payments">Payments</option>
@@ -1173,7 +1177,7 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                       </div>
 
                       <div className="bento-card">
-                        <span className="bento-label mb-6 text-brand-accent">Platform Links</span>
+                        <span className="bento-label mb-6 text-brand-accent">Resource Links & Documents</span>
                         <div className="space-y-6">
                           <form onSubmit={async (e) => {
                             e.preventDefault();
@@ -1193,14 +1197,14 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                               setMessage({ type: 'error', text: 'Failed to add link' });
                             }
                           }} className="flex gap-2">
-                            <input required name="platform" type="text" className="flex-1 text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" placeholder="Target Platform (e.g. Airbnb)" />
+                            <input required name="platform" type="text" className="flex-1 text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" placeholder="Title (e.g. Airbnb, Google Sheet)" />
                             <input required name="url" type="url" className="flex-[2] text-sm p-3 rounded-lg border border-brand-slate-200 focus:border-brand-accent focus:ring-1 focus:ring-brand-accent outline-none" placeholder="URL Link" />
                             <button type="submit" className="px-4 py-3 bg-brand-slate-100 text-brand-slate-900 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-brand-slate-200 transition-colors">Add</button>
                           </form>
 
                           <div className="space-y-2">
                             {(!selectedProperty.links || selectedProperty.links.length === 0) ? (
-                              <div className="text-center py-6 text-xs font-bold uppercase tracking-widest text-brand-slate-400">No platform links added</div>
+                              <div className="text-center py-6 text-xs font-bold uppercase tracking-widest text-brand-slate-400">No links or resources added</div>
                             ) : (
                               selectedProperty.links.map((link, idx) => (
                                 <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-brand-slate-100 bg-brand-slate-50/50">
@@ -1466,6 +1470,106 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                   </div>
                 )}
 
+                {activeTab === 'calendar' && (
+                  <div className="space-y-6">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                      <h2 className="text-xl font-bold uppercase tracking-tight">Booking Calendar</h2>
+                      <div className="flex items-center gap-4 bg-white p-2 rounded-xl border border-brand-slate-200">
+                        <button 
+                          onClick={() => setCalendarMonth(prev => subMonths(prev, 1))}
+                          className="p-1 hover:bg-brand-slate-100 rounded-lg text-brand-slate-500 transition-colors"
+                        >
+                          <ChevronLeft size={20} />
+                        </button>
+                        <div className="text-sm font-black uppercase tracking-widest text-brand-slate-900 w-32 text-center">
+                          {dateFnsFormat(calendarMonth, 'MMMM yyyy')}
+                        </div>
+                        <button 
+                          onClick={() => setCalendarMonth(prev => addMonths(prev, 1))}
+                          className="p-1 hover:bg-brand-slate-100 rounded-lg text-brand-slate-500 transition-colors"
+                        >
+                          <ChevronRight size={20} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bento-card p-0 overflow-hidden bg-brand-slate-50 border border-brand-slate-200">
+                      <div className="grid grid-cols-7 border-b border-brand-slate-200 bg-white">
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                          <div key={day} className="py-3 text-center text-[10px] font-black uppercase tracking-widest text-brand-slate-400 border-r border-brand-slate-100 last:border-0">
+                            {day}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-7 gap-px bg-brand-slate-200">
+                        {eachDayOfInterval({
+                          start: startOfWeek(calendarMonth),
+                          end: endOfWeek(endOfMonth(calendarMonth))
+                        }).map((day, idx) => {
+                          const isCurrentMonth = isSameMonth(day, calendarMonth);
+                          
+                          const dayBookings = revenue.filter(r => {
+                            const start = dateFnsParseISO(r.paymentDate);
+                            const end = addDays(start, r.nights || 1); 
+                            return day >= start && day < end;
+                          });
+
+                          return (
+                            <div 
+                              key={idx} 
+                              className={cn(
+                                "min-h-[100px] sm:min-h-[140px] bg-white p-1 sm:p-2 flex flex-col",
+                                !isCurrentMonth && "bg-brand-slate-50/80 text-brand-slate-300"
+                              )}
+                            >
+                              <span className={cn(
+                                "text-xs font-bold mb-1 sm:mb-2",
+                                isSameDay(day, new Date()) ? "w-6 h-6 rounded-full bg-brand-accent text-white flex items-center justify-center text-[10px] shadow-sm ml-1 mt-1" : "ml-1"
+                              )}>
+                                {dateFnsFormat(day, 'd')}
+                              </span>
+                              <div className="flex-1 space-y-1 overflow-y-auto no-scrollbar">
+                                {dayBookings.map((b, i) => {
+                                  const start = dateFnsParseISO(b.paymentDate);
+                                  const isStart = isSameDay(day, start);
+                                  const end = addDays(start, b.nights || 1);
+                                  const isEnd = isSameDay(addDays(day, 1), end);
+                                  
+                                  let platformColor = "bg-blue-50 text-blue-700 border-blue-200";
+                                  if (b.platform?.toLowerCase().includes('airbnb')) {
+                                    platformColor = "bg-pink-50 text-pink-700 border-pink-200";
+                                  } else if (b.platform?.toLowerCase().includes('direct')) {
+                                    platformColor = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                                  }
+
+                                  return (
+                                    <div 
+                                      key={`${b.id}-${i}`} 
+                                      className={cn(
+                                        "px-1.5 py-1 text-[9px] font-bold truncate leading-tight border-b sm:border border-transparent relative z-10",
+                                        platformColor,
+                                        isStart ? "sm:rounded-l-md sm:ml-1" : "sm:border-l-0 -ml-2",
+                                        isEnd ? "sm:border-r sm:rounded-r-md sm:mr-1" : "sm:border-r-0 -mr-2"
+                                      )}
+                                      title={`${b.guest} (${b.platform}) - ${b.nights || 1} nights`}
+                                    >
+                                      {(isStart || day.getDay() === 0) && (
+                                        <span className="uppercase tracking-tight whitespace-nowrap">
+                                          {b.guest} <span className="opacity-70 font-medium">({b.platform})</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {activeTab === 'revenue' && (
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     <div className="lg:col-span-4 space-y-6">
@@ -1483,7 +1587,10 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                         <span className="bento-label mb-6">Manual Entry</span>
                         <form onSubmit={handleAddRevenue} className="space-y-4">
                           <input name="guest" required placeholder="Guest Name" className="w-full bg-brand-slate-50 border border-brand-slate-200 rounded-xl px-4 py-2 text-xs font-bold" />
-                          <input name="platform" required placeholder="Platform (Airbnb, Booking.com)" className="w-full bg-brand-slate-50 border border-brand-slate-200 rounded-xl px-4 py-2 text-xs font-bold" />
+                          <div className="grid grid-cols-2 gap-2">
+                            <input name="platform" required placeholder="Platform (Airbnb...)" className="w-full bg-brand-slate-50 border border-brand-slate-200 rounded-xl px-4 py-2 text-xs font-bold" />
+                            <input name="nights" type="number" required placeholder="Nights" className="w-full bg-brand-slate-50 border border-brand-slate-200 rounded-xl px-4 py-2 text-xs font-bold" />
+                          </div>
                           <div className="grid grid-cols-2 gap-2">
                             <input name="gross" type="number" step="0.01" required placeholder="Gross" className="w-full bg-brand-slate-50 border border-brand-slate-200 rounded-xl px-4 py-2 text-xs font-bold" />
                             <input name="fees" type="number" step="0.01" required placeholder="Fees" className="w-full bg-brand-slate-50 border border-brand-slate-200 rounded-xl px-4 py-2 text-xs font-bold" />
@@ -1556,6 +1663,7 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                               >
                                 Guest / Platform {revSortField === 'guest' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
                               </th>
+                              <th className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 text-center">Nights</th>
                               <th 
                                 onClick={() => toggleRevSort('gross')} 
                                 className="px-4 py-3 font-bold uppercase text-[9px] text-brand-slate-400 text-right cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
@@ -1607,6 +1715,18 @@ export default function AdminPortal({ onViewAsOwner }: AdminPortalProps) {
                                         <div className="font-bold text-brand-slate-900 uppercase tracking-tight">{r.guest}</div>
                                         <div className="text-[9px] text-brand-slate-400 font-bold">{r.platform}</div>
                                       </>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3 text-center text-[10px] font-bold">
+                                    {isEditing ? (
+                                      <input 
+                                        type="number" 
+                                        defaultValue={r.nights || 0}
+                                        className="bg-white border border-brand-slate-200 rounded px-2 py-1 text-[10px] w-12 text-center"
+                                        onBlur={(e) => handleUpdateRevenue(r.id, { nights: parseInt(e.target.value) || 0 })}
+                                      />
+                                    ) : (
+                                      <div className="text-brand-slate-700">{r.nights || 0} nts</div>
                                     )}
                                   </td>
                                   <td className="px-4 py-3 text-right font-black">

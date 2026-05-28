@@ -58,6 +58,7 @@ export function parseRevenueCSV(csvText: string, propertyId: string): Omit<Reven
       paymentDate: parseCSVDate(getHeader(r, ['Payment Date'])),
       platform: getHeader(r, ['Platform']) || 'Direct',
       guest: getHeader(r, ['Guest']) || 'Guest',
+      nights: safeFloat(getHeader(r, ['Nights'])),
       cleanings: safeFloat(getHeader(r, ['Cleanings'])),
       gross: safeFloat(getHeader(r, ['Gross'])),
       fees: safeFloat(getHeader(r, ['Fees'])),

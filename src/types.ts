@@ -24,6 +24,7 @@ export interface RevenueLog {
   platform: string;
   guest: string;
   type?: 'stay' | 'insurance';
+  nights: number;
   cleanings: number;
   gross: number;
   fees: number;

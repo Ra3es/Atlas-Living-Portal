@@ -7,8 +7,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   LineChart, Line, PieChart as RechartsPieChart, Pie, Cell
 } from 'recharts';
-import { Calendar, Download, TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, PieChart, LayoutDashboard, ListFilter, CreditCard, Receipt, Home, Clock, AlertTriangle, CheckCircle, FileText, Ticket } from 'lucide-react';
-import { format as dateFnsFormat, startOfMonth, endOfMonth, isWithinInterval as dateFnsIsWithinInterval, parseISO as dateFnsParseISO } from 'date-fns';
+import { Calendar, Download, TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, PieChart, LayoutDashboard, ListFilter, CreditCard, Receipt, Home, Clock, AlertTriangle, CheckCircle, FileText, Ticket, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { format as dateFnsFormat, startOfMonth, endOfMonth, isWithinInterval as dateFnsIsWithinInterval, parseISO as dateFnsParseISO, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addDays, addMonths, subMonths } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 
 const parseISO = (dateStr: string | undefined | null): Date => {
@@ -66,9 +66,31 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
-  const [view, setView] = useState<'overview' | 'revenue' | 'expenses' | 'statement' | 'operations' | 'payments' | 'info'>('overview');
+  const [view, setView] = useState<'overview' | 'revenue' | 'expenses' | 'statement' | 'operations' | 'payments' | 'info' | 'calendar'>('overview');
   const contentRef = React.useRef<HTMLDivElement>(null);
   const [showNewTicketForm, setShowNewTicketForm] = useState(false);
+  const [userProperties, setUserProperties] = useState<Property[]>([]);
+  const [showPropertySwitcher, setShowPropertySwitcher] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(startOfMonth(new Date()));
+
+  useEffect(() => {
+    const fetchUserProps = async () => {
+      try {
+        const q = query(
+          collection(db, 'properties'),
+          where('ownerEmail', '==', property.ownerEmail)
+        );
+        const snapshot = await getDocs(q);
+        const props = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
+        setUserProperties(props);
+      } catch (err) {
+        console.error("Failed to fetch user properties:", err);
+      }
+    };
+    if (property?.ownerEmail) {
+      fetchUserProps();
+    }
+  }, [property?.ownerEmail]);
 
   useEffect(() => {
     if (view !== 'overview' && contentRef.current) {
@@ -354,6 +376,29 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
 
   if (loading) return <div className="h-screen flex items-center justify-center font-sans">Generating Statement...</div>;
 
+  const renderDateSelectors = () => (
+    <div className="flex flex-row items-center gap-2">
+      <div className="flex items-center gap-2 bg-white px-2 py-1.5 rounded-lg border border-brand-slate-200 shadow-sm focus-within:border-brand-accent focus-within:ring-2 focus-within:ring-brand-accent/20 transition-all flex-1 sm:flex-none max-w-[130px] sm:max-w-none">
+        <span className="text-[9px] font-black uppercase tracking-widest text-brand-slate-400 hidden sm:inline">From</span>
+        <input 
+          type="date" 
+          value={startDate} 
+          onChange={(e) => setStartDate(e.target.value)}
+          className="bg-transparent text-[10px] font-bold outline-none w-full text-brand-slate-700 cursor-pointer" 
+        />
+      </div>
+      <div className="flex items-center gap-2 bg-white px-2 py-1.5 rounded-lg border border-brand-slate-200 shadow-sm focus-within:border-brand-accent focus-within:ring-2 focus-within:ring-brand-accent/20 transition-all flex-1 sm:flex-none max-w-[130px] sm:max-w-none">
+        <span className="text-[9px] font-black uppercase tracking-widest text-brand-slate-400 hidden sm:inline">To</span>
+        <input 
+          type="date" 
+          value={endDate} 
+          onChange={(e) => setEndDate(e.target.value)}
+          className="bg-transparent text-[10px] font-bold outline-none w-full text-brand-slate-700 cursor-pointer" 
+        />
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-brand-slate-50 font-sans text-brand-slate-800 pb-20 lg:pb-0 flex flex-col lg:flex-row">
       {/* Desktop Sidebar */}
@@ -404,6 +449,16 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
             Payments
           </button>
           <button 
+            onClick={() => setView('calendar')} 
+            className={cn(
+              "px-4 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
+              view === 'calendar' ? "bg-brand-slate-900 text-white shadow-sm" : "text-brand-slate-500 hover:bg-brand-slate-50 hover:text-brand-slate-900"
+            )}
+          >
+            <Calendar size={16} />
+            Calendar
+          </button>
+          <button 
             onClick={() => setView('operations')} 
             className={cn(
               "px-4 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
@@ -425,22 +480,55 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
           </button>
         </nav>
 
-        <div className="mt-auto flex flex-col gap-4">
-          <div className="flex items-center gap-3 pb-4 border-b border-brand-slate-100">
-            <div className="w-10 h-10 rounded-full bg-brand-slate-100 text-brand-slate-900 flex items-center justify-center font-bold text-sm">
-              {property.ownerName.charAt(0)}
+        <div className="mt-auto flex flex-col gap-2 relative">
+          {showPropertySwitcher && userProperties.length > 1 && (
+            <div className="absolute bottom-full left-0 w-full mb-2 bg-white border border-brand-slate-200 rounded-xl shadow-xl overflow-hidden z-20">
+              <div className="p-2 border-b border-brand-slate-100 bg-brand-slate-50 text-[9px] font-black uppercase tracking-widest text-brand-slate-400">Select Property</div>
+              <div className="max-h-48 overflow-y-auto">
+                {userProperties.map(p => (
+                  <button 
+                    key={p.id}
+                    onClick={() => {
+                      setShowPropertySwitcher(false);
+                      localStorage.setItem('atlas_logged_property_id', p.id);
+                      window.location.hash = `#/owner/${p.id}`;
+                    }}
+                    className={cn(
+                      "w-full text-left p-3 hover:bg-brand-slate-50 transition-colors flex flex-col gap-0.5 border-l-2",
+                      p.id === property.id ? "bg-brand-slate-50 text-brand-slate-900 border-brand-slate-900" : "text-brand-slate-600 border-transparent"
+                    )}
+                  >
+                    <span className="text-xs font-bold">{p.name}</span>
+                    <span className="text-[9px] uppercase tracking-widest text-brand-slate-400">{p.id}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div>
-              <div className="text-xs font-bold text-brand-slate-900 line-clamp-1">{property.ownerName}</div>
-              <div className="text-[10px] font-bold text-brand-slate-400 uppercase tracking-widest">ID: {property.id}</div>
+          )}
+
+          <button 
+            onClick={() => setShowPropertySwitcher(!showPropertySwitcher)}
+            className="flex items-center justify-between p-3 border border-brand-slate-200 rounded-xl hover:border-brand-slate-900 transition-colors bg-white mt-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-brand-slate-100 text-brand-slate-900 flex items-center justify-center font-bold text-sm shrink-0">
+                {property.ownerName.charAt(0)}
+              </div>
+              <div className="text-left min-w-0">
+                <div className="text-xs font-bold text-brand-slate-900 truncate">{property.ownerName}</div>
+                <div className="text-[9px] font-bold text-brand-slate-400 uppercase tracking-widest truncate">{property.id}</div>
+              </div>
             </div>
-          </div>
+            {userProperties.length > 1 && (
+              <ChevronUp size={16} className={cn("text-brand-slate-400 transition-transform", showPropertySwitcher && "rotate-180")} />
+            )}
+          </button>
           
           <button 
             onClick={onLogout} 
-            className="flex items-center gap-3 px-4 py-3 rounded-lg text-xs font-black uppercase tracking-widest text-brand-slate-400 hover:bg-red-50 hover:text-red-500 transition-all w-full text-left"
+            className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-xs font-black uppercase tracking-widest text-brand-slate-400 hover:bg-red-50 hover:text-red-500 transition-all w-full"
           >
-            <ArrowUpRight size={16} className="rotate-180" />
+            <ArrowUpRight size={14} className="rotate-180" />
             Sign Out
           </button>
         </div>
@@ -480,6 +568,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
               <option value="revenue">Revenue</option>
               <option value="expenses">Expenses</option>
               <option value="payments">Payments</option>
+              <option value="calendar">Calendar</option>
               <option value="operations">Operations</option>
               <option value="info">Info</option>
             </select>
@@ -496,32 +585,20 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-4 md:space-y-6"
               >
+                {/* Overview Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                   <h2 className="text-xl font-bold uppercase tracking-tight">Statement Overview</h2>
+                   <div className="flex gap-2">
+                     {renderDateSelectors()}
+                   </div>
+                </div>
+
                 {/* Row 1: Statement Period, Operational Profit, Net Revenue, Gross Revenue */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                   <div className="bento-card col-span-2 lg:col-span-1">
                     <span className="bento-label">Period</span>
-                    <div className="text-xs sm:text-sm font-bold text-brand-slate-800 flex items-center gap-2 mb-2 sm:mb-4 uppercase">
+                    <div className="text-xs sm:text-sm font-bold text-brand-slate-800 flex items-center gap-2 uppercase">
                       {format(parseISO(startDate), 'MMM dd')} — {format(parseISO(endDate), 'MMM dd')}
-                    </div>
-                    <div className="mt-auto space-y-1 sm:space-y-2">
-                      <div className="flex items-center gap-2 bg-brand-slate-50 p-1 rounded-lg border border-brand-slate-200">
-                        <Calendar size={10} className="text-brand-slate-400" />
-                        <input 
-                          type="date" 
-                          value={startDate} 
-                          onChange={(e) => setStartDate(e.target.value)}
-                          className="bg-transparent text-[9px] sm:text-[10px] font-bold outline-none w-full" 
-                        />
-                      </div>
-                      <div className="flex items-center gap-2 bg-brand-slate-50 p-1 rounded-lg border border-brand-slate-200">
-                        <Calendar size={10} className="text-brand-slate-400" />
-                        <input 
-                          type="date" 
-                          value={endDate} 
-                          onChange={(e) => setEndDate(e.target.value)}
-                          className="bg-transparent text-[9px] sm:text-[10px] font-bold outline-none w-full" 
-                        />
-                      </div>
                     </div>
                   </div>
 
@@ -549,26 +626,24 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                         <span className="text-brand-slate-700">{formatCurrency(stats.totalGross)}</span>
                       </div>
                       <div className="flex justify-between items-center text-[8px] sm:text-[9px] font-bold uppercase border-t border-brand-slate-100 pt-1">
-                        <span className="text-brand-slate-400">Fees</span>
+                        <span className="text-brand-slate-400">Platform Fees</span>
                         <span className="text-red-500">-{formatCurrency(stats.totalPlatformFees)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[8px] sm:text-[9px] font-bold uppercase border-t border-brand-slate-100 pt-1">
+                        <span className="text-brand-slate-400">Mgt Fees</span>
+                        <span className="text-red-500">-{formatCurrency(stats.totalManagementFees)}</span>
                       </div>
                     </div>
                   </button>
                 </div>
 
                 {/* Row 2: Operational Expenses, Management Fees, Payments Applied, Outstanding Settlement */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
                   <button onClick={() => setView('expenses')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
                     <span className="bento-label text-red-500">Expenses</span>
                     <div className="bento-value text-red-600 text-base sm:text-lg lg:text-2xl">{formatCurrency(stats.totalExpenses)}</div>
-                    <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[9px] uppercase font-bold tracking-widest text-brand-slate-400">Portfolio</div>
+                    <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[9px] uppercase font-bold tracking-widest text-brand-slate-400">Property</div>
                   </button>
-
-                  <div className="bento-card col-span-1 border-brand-accent/20 bg-brand-accent/5 p-3 sm:p-5">
-                    <span className="bento-label text-brand-accent">Management Fees</span>
-                    <div className="bento-value text-brand-slate-900 text-base sm:text-lg lg:text-2xl">{formatCurrency(stats.totalManagementFees)}</div>
-                    <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[10px] text-brand-slate-400 font-medium uppercase tracking-tight">Atlas Living</div>
-                  </div>
 
                   <button onClick={() => setView('payments')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
                     <span className="bento-label text-green-600">Payments</span>
@@ -576,7 +651,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                     <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[10px] text-brand-slate-400 font-medium uppercase tracking-tight">Reconciled</div>
                   </button>
 
-                  <button onClick={() => setView('payments')} className={cn("bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5", stats.balanceRemainingToAtlas > 0 ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200")}>
+                  <button onClick={() => setView('payments')} className={cn("bento-card col-span-2 sm:col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5", stats.balanceRemainingToAtlas > 0 ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200")}>
                     <span className="bento-label font-bold text-[8px] sm:text-[10px]">{stats.balanceRemainingToAtlas > 0 ? "Currently Payable" : "Settled"}</span>
                     <div className={cn("text-base sm:text-lg lg:text-3xl font-black tracking-tighter", stats.balanceRemainingToAtlas > 0 ? "text-amber-700" : "text-green-700")}>
                       {formatCurrency(Math.abs(stats.balanceRemainingToAtlas))}
@@ -605,7 +680,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
 
                   <button onClick={() => setView('operations')} className="bento-card text-left hover:scale-[1.01] transition-all cursor-pointer">
                     <div className="flex items-center justify-between mb-4">
-                      <span className="bento-label">Portfolio Tickets</span>
+                      <span className="bento-label">Property Tickets</span>
                       <span className="text-[9px] font-black uppercase text-brand-slate-400">{maintenance.filter(m => m.status !== 'resolved').length} Active Requests</span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -638,7 +713,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
 
                 {/* Grid row 4: Chart, Activity sidebar, Support */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bento-card col-span-1 md:col-span-3 row-span-2 shadow-2xl shadow-black/5">
+                <div className="bento-card col-span-1 md:col-span-2 lg:col-span-3 lg:row-span-2 shadow-2xl shadow-black/5">
                   <div className="flex justify-between items-center mb-6">
                     <span className="bento-label text-brand-accent">Revenue Breakdown & Profitability</span>
                   </div>
@@ -694,7 +769,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                 </div>
 
                 {/* Recent Items Sidebar */}
-                <button onClick={() => setView('revenue')} className="bento-card col-span-1 row-span-2 overflow-hidden border-brand-slate-200 text-left hover:scale-[1.01] transition-all cursor-pointer">
+                <button onClick={() => setView('revenue')} className="bento-card col-span-1 md:col-span-2 lg:col-span-1 lg:row-span-2 overflow-hidden border-brand-slate-200 text-left hover:scale-[1.01] transition-all cursor-pointer flex flex-col">
                   <div className="flex items-center justify-between border-b border-brand-slate-100 pb-3 mb-4">
                     <span className="bento-label">Activity</span>
                   </div>
@@ -753,7 +828,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                   </div>
                 </button>
 
-                <div className="bento-card col-span-1">
+                <div className="bento-card col-span-1 md:col-span-1 lg:col-span-2">
                   <span className="bento-label">Statement Info</span>
                   <div className="text-[10px] font-bold mt-2 uppercase tracking-widest text-brand-accent">
                     Ref: {property.id}{format(parseISO(endDate), 'yyddMM')}
@@ -780,7 +855,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                   </div>
                 </div>
 
-                <div className="bento-card col-span-1">
+                <div className="bento-card col-span-1 md:col-span-1 lg:col-span-2">
                   <span className="bento-label">Support & Inquiries</span>
                   <div className="text-sm font-bold mt-2 text-brand-slate-900">Atlas Concierge</div>
                   <div className="mt-4 space-y-2">
@@ -894,7 +969,7 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                   {/* Tickets List */}
                   <div className="md:col-span-12 bento-card p-0 overflow-hidden">
                     <div className="p-6 border-b border-brand-slate-100 flex justify-between items-center bg-white">
-                      <span className="bento-label">Active Portfolio Tickets</span>
+                      <span className="bento-label">Active Property Tickets</span>
                       <div className="p-2 bg-brand-accent/10 rounded-lg text-brand-accent">
                         <ListFilter size={18} />
                       </div>
@@ -976,22 +1051,26 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                    <h2 className="text-xl font-bold uppercase tracking-tight">Payments Reconciled</h2>
                    
                    <div className="flex gap-2">
-                     <span className="bg-brand-slate-900 text-white px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest">
+                     <span className="bg-brand-slate-900 text-white px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest hidden md:flex items-center">
                        All-Time Balance: {formatCurrency(Math.max(0, stats.balanceRemainingToAtlas))}
                      </span>
+                     {renderDateSelectors()}
                    </div>
                 </div>
 
                 <div className="bento-card p-0 overflow-hidden">
                    <div className="p-6 border-b border-brand-slate-100 flex justify-between items-center bg-white">
                       <span className="bento-label">Payment History</span>
-                      <div className="p-2 bg-brand-accent/10 rounded-lg text-brand-accent">
-                        <CreditCard size={18} />
+                      <div className="flex items-center gap-4">
+                        <button onClick={() => setView('overview')} className="text-[10px] font-bold text-brand-slate-500 hover:text-brand-slate-900 border border-brand-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 uppercase tracking-widest transition-colors">Back to Dashboard</button>
+                        <div className="p-2 bg-brand-accent/10 rounded-lg text-brand-accent">
+                          <CreditCard size={18} />
+                        </div>
                       </div>
                    </div>
                    
                    <div className="p-0 overflow-x-auto">
-                     <table className="w-full text-left border-collapse">
+                     <table className="w-full text-left border-collapse min-w-[600px]">
                         <thead>
                           <tr className="bg-brand-slate-50 border-b border-brand-slate-100">
                              <th className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-brand-slate-400">Date paid</th>
@@ -1000,196 +1079,394 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-brand-slate-100 text-sm">
-                          {payments.length === 0 ? (
+                          {filteredPayments.length === 0 ? (
                             <tr>
                               <td colSpan={3} className="py-12 text-center text-brand-slate-400 font-bold uppercase tracking-widest text-xs">
                                 No payments recorded
                               </td>
                             </tr>
                           ) : (
-                            payments.map((p) => (
+                            filteredPayments.map((p) => (
                                <tr key={p.id} className="hover:bg-brand-slate-50/50 transition-colors">
-                                 <td className="py-3 px-4 font-mono text-brand-slate-600 border-r border-brand-slate-100 w-32">{p.date}</td>
-                                 <td className="py-3 px-4 font-medium text-green-600">
+                                 <td className="py-3 px-4 font-mono text-xs font-bold text-brand-slate-600 border-r border-brand-slate-100 w-32">{format(parseISO(p.date), 'MMM dd, yyyy')}</td>
+                                 <td className="py-3 px-4 text-xs font-bold text-green-600">
                                    {formatCurrency(p.amount)}
                                  </td>
-                                 <td className="py-3 px-4 text-brand-slate-500 whitespace-pre-wrap">{p.description || '-'}</td>
+                                 <td className="py-3 px-4 text-xs font-bold text-brand-slate-500 whitespace-pre-wrap">{p.description || '-'}</td>
                                </tr>
                             ))
                           )}
                         </tbody>
-                     </table>
-                   </div>
-                </div>
+                      </table>
+                    </div>
+                 </div>
               </motion.div>
             )}
 
             {view === 'revenue' && (
               <motion.div
                 key="revenue-view"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="bento-card"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
               >
-                <div className="flex items-center justify-between mb-8">
-                  <span className="bento-label">Revenue Breakdown</span>
-                  <div className="flex items-center gap-4">
-                    <button 
-                      onClick={() => {
-                        const csvData = sortedRevLogs.map(log => ({
-                          Date: log.paymentDate,
-                          Guest: log.guest,
-                          Platform: log.platform,
-                          Gross: log.gross,
-                          Fees: log.fees,
-                          Net: log.gross - log.fees
-                        }));
-                        exportToCSV(csvData, `revenue_${startDate}_${endDate}`);
-                      }} 
-                      className="text-xs font-bold text-brand-slate-500 hover:text-brand-slate-900 transition-colors uppercase tracking-widest flex items-center gap-1"
-                    >
-                      <Download size={14} /> Export CSV
-                    </button>
-                    <button onClick={() => setView('overview')} className="text-xs font-bold text-brand-slate-500 hover:text-brand-slate-900 transition-colors uppercase tracking-widest">Back to Dashboard</button>
-                  </div>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                   <h2 className="text-xl font-bold uppercase tracking-tight">Revenue Breakdown</h2>
+                   
+                   <div className="flex gap-2">
+                     {renderDateSelectors()}
+                   </div>
                 </div>
-                <div className="overflow-x-auto no-scrollbar">
-                    <table className="w-full text-left min-w-[600px]">
-                      <thead className="border-b border-brand-slate-100">
-                        <tr>
-                          <th 
-                            onClick={() => toggleRevSort('paymentDate')} 
-                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
-                          >
-                            Date {revSortField === 'paymentDate' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
-                          </th>
-                          <th 
-                            onClick={() => toggleRevSort('guest')} 
-                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
-                          >
-                            Guest / Platform {revSortField === 'guest' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
-                          </th>
-                          <th 
-                            onClick={() => toggleRevSort('gross')} 
-                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 text-right cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
-                          >
-                            Gross {revSortField === 'gross' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
-                          </th>
-                          <th 
-                            onClick={() => toggleRevSort('fees')} 
-                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 text-right text-red-500 cursor-pointer select-none hover:text-red-700 transition-colors"
-                          >
-                            Fees {revSortField === 'fees' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
-                          </th>
-                          <th 
-                            onClick={() => toggleRevSort('netRevenue')} 
-                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 text-right text-brand-accent cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
-                          >
-                            Net {revSortField === 'netRevenue' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-brand-slate-50">
-                        {sortedRevenue.map(r => (
-                          <tr key={r.id}>
-                            <td className="py-4 text-xs font-bold">{format(parseISO(r.paymentDate), 'MMM dd, yyyy')}</td>
-                            <td className="py-4 text-xs font-medium text-brand-slate-600">{r.guest} • <span className="text-[10px] uppercase font-bold text-brand-slate-400">{r.platform}</span></td>
-                            <td className="py-4 text-right text-xs font-bold">{formatCurrency(r.gross)}</td>
-                            <td className="py-4 text-right text-xs font-bold text-red-500">-{formatCurrency(r.fees)}</td>
-                            <td className="py-4 text-right text-xs font-black text-brand-accent">{formatCurrency(r.netRevenue)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                </div>
-              </motion.div>
-            )}
+
+                <div className="bento-card p-0 overflow-hidden">
+                   <div className="p-6 border-b border-brand-slate-100 flex flex-wrap gap-4 justify-between items-center bg-white">
+                      <span className="bento-label">Revenue Ledger</span>
+                      <div className="flex items-center gap-4">
+                        <button 
+                          onClick={() => {
+                            const csvData = sortedRevenue.map(log => ({
+                              Date: log.paymentDate,
+                              Guest: log.guest,
+                              Platform: log.platform,
+                              Nights: log.nights || 0,
+                              Gross: log.gross,
+                              Fees: log.fees,
+                              Net: log.gross - log.fees
+                            }));
+                            exportToCSV(csvData, `revenue_${startDate}_${endDate}`);
+                          }} 
+                          className="text-[10px] font-bold text-brand-slate-500 hover:text-brand-slate-900 border border-brand-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 uppercase tracking-widest transition-colors"
+                        >
+                          <Download size={12} /> Export CSV
+                        </button>
+                        <button onClick={() => setView('overview')} className="text-[10px] font-bold text-brand-slate-500 hover:text-brand-slate-900 border border-brand-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 uppercase tracking-widest transition-colors">Back to Dashboard</button>
+                        <div className="p-2 bg-green-50/50 rounded-lg text-green-600">
+                          <TrendingUp size={18} />
+                        </div>
+                      </div>
+                   </div>
+                   <div className="p-0 overflow-x-auto">
+                     <table className="w-full text-left border-collapse min-w-[600px]">
+                        <thead>
+                          <tr className="bg-brand-slate-50 border-b border-brand-slate-100">
+                           <th 
+                             onClick={() => toggleRevSort('paymentDate')} 
+                             className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                           >
+                             Date {revSortField === 'paymentDate' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
+                           </th>
+                           <th 
+                             onClick={() => toggleRevSort('guest')} 
+                             className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                           >
+                             Guest / Platform {revSortField === 'guest' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
+                           </th>
+                           <th className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-brand-slate-400 text-center">
+                             Nights / rate
+                           </th>
+                           <th 
+                             onClick={() => toggleRevSort('gross')} 
+                             className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-right text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                           >
+                             Gross {revSortField === 'gross' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
+                           </th>
+                           <th 
+                             onClick={() => toggleRevSort('fees')} 
+                             className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-right text-red-500 cursor-pointer select-none hover:text-red-700 transition-colors"
+                           >
+                             Fees {revSortField === 'fees' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
+                           </th>
+                           <th 
+                             onClick={() => toggleRevSort('netRevenue')} 
+                             className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-right text-brand-accent cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                           >
+                             Net {revSortField === 'netRevenue' ? (revSortDirection === 'asc' ? '▲' : '▼') : ''}
+                           </th>
+                         </tr>
+                       </thead>
+                       <tbody className="divide-y divide-brand-slate-100 text-sm">
+                         {sortedRevenue.length === 0 ? (
+                           <tr>
+                              <td colSpan={6} className="py-12 text-center text-brand-slate-400 font-bold uppercase tracking-widest text-xs">
+                                No revenue recorded
+                              </td>
+                            </tr>
+                         ) : (
+                           sortedRevenue.map(r => (
+                             <tr key={r.id} className="hover:bg-brand-slate-50/50 transition-colors">
+                               <td className="py-3 px-4 font-mono text-xs font-bold border-r border-brand-slate-100 w-32 text-brand-slate-600">{format(parseISO(r.paymentDate), 'MMM dd, yyyy')}</td>
+                               <td className="py-3 px-4 text-xs font-medium text-brand-slate-600">{r.guest} • <span className="text-[10px] uppercase font-bold text-brand-slate-400">{r.platform}</span></td>
+                               <td className="py-3 px-4 text-center">
+                                 <div className="text-[11px] font-black text-brand-slate-900">{r.nights || 0} nts</div>
+                                 <div className="text-[9px] uppercase font-bold text-brand-slate-400 mt-0.5">{r.nights && r.nights > 0 ? formatCurrency(r.gross / r.nights) + ' / nt' : '-'}</div>
+                               </td>
+                               <td className="py-3 px-4 text-right text-xs font-bold text-green-700">{formatCurrency(r.gross)}</td>
+                               <td className="py-3 px-4 text-right text-xs font-bold text-red-500">-{formatCurrency(r.fees)}</td>
+                               <td className="py-3 px-4 text-right text-xs font-black text-brand-accent">{formatCurrency(r.netRevenue)}</td>
+                             </tr>
+                           ))
+                         )}
+                       </tbody>
+                     </table>
+                   </div>
+                 </div>
+               </motion.div>
+             )}
 
             {view === 'expenses' && (
               <motion.div
                 key="expenses-view"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="bento-card"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
               >
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <span className="bento-label">Expense List</span>
-                    {stats.reimbursableExpenses > 0 && (
-                      <div className="text-[10px] font-black uppercase text-amber-600 mt-1">
-                        Total Reimbursable: {formatCurrency(stats.reimbursableExpenses)}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                   <h2 className="text-xl font-bold uppercase tracking-tight">Expenses Breakdown</h2>
+                   
+                   <div className="flex gap-2">
+                     {renderDateSelectors()}
+                   </div>
+                </div>
+
+                <div className="bento-card p-0 overflow-hidden">
+                   <div className="p-6 border-b border-brand-slate-100 flex flex-wrap gap-4 justify-between items-center bg-white">
+                      <span className="bento-label">Expense List</span>
+                      <div className="flex items-center gap-4">
+                        <button 
+                          onClick={() => {
+                            const csvData = sortedExpenses.map(log => ({
+                              Date: log.date,
+                              Description: log.description,
+                              Category: log.category,
+                              Amount: log.amount,
+                              Reimbursable: log.reimbursable ? 'Yes' : 'No'
+                            }));
+                            exportToCSV(csvData, `expenses_${startDate}_${endDate}`);
+                          }} 
+                          className="text-[10px] font-bold text-brand-slate-500 hover:text-brand-slate-900 border border-brand-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 uppercase tracking-widest transition-colors"
+                        >
+                          <Download size={12} /> Export CSV
+                        </button>
+                        <button onClick={() => setView('overview')} className="text-[10px] font-bold text-brand-slate-500 hover:text-brand-slate-900 border border-brand-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 uppercase tracking-widest transition-colors">Back to Dashboard</button>
+                        <div className="p-2 bg-red-50/50 rounded-lg text-red-500">
+                          <Wallet size={18} />
+                        </div>
                       </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <button 
-                      onClick={() => {
-                        const csvData = sortedExpLogs.map(log => ({
-                          Date: log.date,
-                          Description: log.description,
-                          Category: log.category,
-                          Amount: log.amount,
-                          Reimbursable: log.reimbursable ? 'Yes' : 'No'
-                        }));
-                        exportToCSV(csvData, `expenses_${startDate}_${endDate}`);
-                      }} 
-                      className="text-xs font-bold text-brand-slate-500 hover:text-brand-slate-900 transition-colors uppercase tracking-widest flex items-center gap-1"
-                    >
-                      <Download size={14} /> Export CSV
-                    </button>
-                    <button onClick={() => setView('overview')} className="text-xs font-bold text-brand-slate-500 hover:text-brand-slate-900 transition-colors uppercase tracking-widest">Back to Dashboard</button>
-                  </div>
-                </div>
-                <div className="overflow-x-auto no-scrollbar">
-                    <table className="w-full text-left min-w-[600px]">
-                       <thead className="border-b border-brand-slate-100">
-                        <tr>
-                          <th 
-                            onClick={() => toggleExpSort('date')} 
-                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
-                          >
-                            Date {expSortField === 'date' ? (expSortDirection === 'asc' ? '▲' : '▼') : ''}
-                          </th>
-                          <th 
-                            onClick={() => toggleExpSort('description')} 
-                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
-                          >
-                            Description {expSortField === 'description' ? (expSortDirection === 'asc' ? '▲' : '▼') : ''}
-                          </th>
-                          <th 
-                            onClick={() => toggleExpSort('amount')} 
-                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 text-right cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
-                          >
-                            Amount {expSortField === 'amount' ? (expSortDirection === 'asc' ? '▲' : '▼') : ''}
-                          </th>
-                          <th 
-                            onClick={() => toggleExpSort('reimbursable')} 
-                            className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 text-center cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
-                          >
-                            Reimbursable {expSortField === 'reimbursable' ? (expSortDirection === 'asc' ? '▲' : '▼') : ''}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-brand-slate-50">
-                        {sortedExpenses.map(e => (
-                          <tr key={e.id}>
-                            <td className="py-4 text-xs font-bold">{format(parseISO(e.date), 'MMM dd, yyyy')}</td>
-                            <td className="py-4 text-xs font-medium text-brand-slate-600">{e.description} • <span className="text-[10px] uppercase font-bold text-brand-slate-400">{e.category}</span></td>
-                            <td className="py-4 text-right text-xs font-bold text-red-600">{formatCurrency(e.amount)}</td>
-                            <td className="py-4 text-center">
-                              {e.reimbursable ? 
-                                <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[9px] font-black uppercase">Yes</span> : 
-                                <span className="bg-brand-slate-100 text-brand-slate-400 px-2 py-0.5 rounded text-[9px] font-black uppercase">No</span>
-                              }
-                            </td>
+                   </div>
+                   <div className="p-0 overflow-x-auto">
+                     <table className="w-full text-left border-collapse min-w-[600px]">
+                        <thead>
+                          <tr className="bg-brand-slate-50 border-b border-brand-slate-100">
+                           <th 
+                             onClick={() => toggleExpSort('date')} 
+                             className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                           >
+                             Date {expSortField === 'date' ? (expSortDirection === 'asc' ? '▲' : '▼') : ''}
+                           </th>
+                           <th 
+                             onClick={() => toggleExpSort('description')} 
+                             className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                           >
+                             Description {expSortField === 'description' ? (expSortDirection === 'asc' ? '▲' : '▼') : ''}
+                           </th>
+                           <th 
+                             onClick={() => toggleExpSort('amount')} 
+                             className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-right text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                           >
+                             Amount {expSortField === 'amount' ? (expSortDirection === 'asc' ? '▲' : '▼') : ''}
+                           </th>
+                           <th 
+                             onClick={() => toggleExpSort('reimbursable')} 
+                             className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-center text-brand-slate-400 cursor-pointer select-none hover:text-brand-slate-900 transition-colors"
+                           >
+                             Reimbursable {expSortField === 'reimbursable' ? (expSortDirection === 'asc' ? '▲' : '▼') : ''}
+                           </th>
+                         </tr>
+                       </thead>
+                       <tbody className="divide-y divide-brand-slate-100 text-sm">
+                         {sortedExpenses.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="py-12 text-center text-brand-slate-400 font-bold uppercase tracking-widest text-xs">
+                                No expenses recorded
+                              </td>
+                            </tr>
+                         ) : (
+                           sortedExpenses.map(e => (
+                             <tr key={e.id} className="hover:bg-brand-slate-50/50 transition-colors">
+                               <td className="py-3 px-4 font-mono text-xs font-bold border-r border-brand-slate-100 w-32 text-brand-slate-600">{format(parseISO(e.date), 'MMM dd, yyyy')}</td>
+                               <td className="py-3 px-4 text-xs font-medium text-brand-slate-600">{e.description} • <span className="text-[10px] uppercase font-bold text-brand-slate-400">{e.category}</span></td>
+                               <td className="py-3 px-4 text-right text-xs font-bold text-red-600">{formatCurrency(e.amount)}</td>
+                               <td className="py-3 px-4 text-center">
+                                 {e.reimbursable ? 
+                                   <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[9px] font-black uppercase">Yes</span> : 
+                                   <span className="bg-brand-slate-100 text-brand-slate-400 px-2 py-0.5 rounded text-[9px] font-black uppercase">No</span>
+                                 }
+                               </td>
+                             </tr>
+                           ))
+                         )}
+                       </tbody>
+                     </table>
+                   </div>
+                 </div>
+
+                 <div className="bento-card p-0 overflow-hidden">
+                    <div className="p-6 border-b border-brand-slate-100 flex flex-wrap gap-4 justify-between items-center bg-white">
+                       <span className="bento-label">Management Fees Breakdown</span>
+                    </div>
+                    <div className="p-0 overflow-x-auto">
+                      <table className="w-full text-left border-collapse min-w-[600px]">
+                         <thead>
+                           <tr className="bg-brand-slate-50 border-b border-brand-slate-100">
+                            <th className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-brand-slate-400">
+                              Description
+                            </th>
+                            <th className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-brand-slate-400">
+                              Details
+                            </th>
+                            <th className="py-3 px-4 text-[10px] uppercase font-black tracking-widest text-right text-brand-slate-400">
+                              Amount
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                </div>
+                        </thead>
+                        <tbody className="divide-y divide-brand-slate-100 text-sm">
+                           <tr className="hover:bg-brand-slate-50/50 transition-colors">
+                             <td className="py-3 px-4 font-mono text-xs font-bold border-r border-brand-slate-100 w-32 text-brand-slate-600">Base Commission</td>
+                             <td className="py-3 px-4 text-xs font-medium text-brand-slate-600">{(property.managementFeePercent || 0)}% of Gross Revenue</td>
+                             <td className="py-3 px-4 text-right text-xs font-bold text-red-600">{formatCurrency(stats.mgtPercentFee)}</td>
+                           </tr>
+                           {stats.mgtFixedFee > 0 && (
+                             <tr className="hover:bg-brand-slate-50/50 transition-colors">
+                               <td className="py-3 px-4 font-mono text-xs font-bold border-r border-brand-slate-100 w-32 text-brand-slate-600">Fixed Fee</td>
+                               <td className="py-3 px-4 text-xs font-medium text-brand-slate-600">Monthly Surcharge</td>
+                               <td className="py-3 px-4 text-right text-xs font-bold text-red-600">{formatCurrency(stats.mgtFixedFee)}</td>
+                             </tr>
+                           )}
+                           {filteredFees.map(f => (
+                             <tr key={f.id} className="hover:bg-brand-slate-50/50 transition-colors">
+                               <td className="py-3 px-4 font-mono text-xs font-bold border-r border-brand-slate-100 w-32 text-brand-slate-600">Custom Fee</td>
+                               <td className="py-3 px-4 text-xs font-medium text-brand-slate-600">{f.description} • <span className="text-[10px] uppercase font-bold text-brand-slate-400">{format(parseISO(f.date), 'MMM yyyy')}</span></td>
+                               <td className="py-3 px-4 text-right text-xs font-bold text-red-600">{formatCurrency(f.amount)}</td>
+                             </tr>
+                           ))}
+                        </tbody>
+                        <tfoot className="bg-brand-slate-50 border-t border-brand-slate-100">
+                          <tr>
+                            <td colSpan={2} className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right text-brand-slate-500">Total Management Fees</td>
+                            <td className="py-4 px-4 text-right text-sm font-black text-brand-slate-900">{formatCurrency(stats.totalManagementFees)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                 </div>
               </motion.div>
             )}
 
+
+            {view === 'calendar' && (
+              <motion.div
+                key="calendar-view"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+              >
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                  <h2 className="text-xl font-bold uppercase tracking-tight">Booking Calendar</h2>
+                  <div className="flex items-center gap-4 bg-white p-2 rounded-xl border border-brand-slate-200">
+                    <button 
+                      onClick={() => setCalendarMonth(prev => subMonths(prev, 1))}
+                      className="p-1 hover:bg-brand-slate-100 rounded-lg text-brand-slate-500 transition-colors"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    <div className="text-sm font-black uppercase tracking-widest text-brand-slate-900 w-32 text-center">
+                      {dateFnsFormat(calendarMonth, 'MMMM yyyy')}
+                    </div>
+                    <button 
+                      onClick={() => setCalendarMonth(prev => addMonths(prev, 1))}
+                      className="p-1 hover:bg-brand-slate-100 rounded-lg text-brand-slate-500 transition-colors"
+                    >
+                      <ChevronRight size={20} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bento-card p-0 overflow-hidden bg-brand-slate-50 border border-brand-slate-200">
+                  <div className="grid grid-cols-7 border-b border-brand-slate-200 bg-white">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                      <div key={day} className="py-3 text-center text-[10px] font-black uppercase tracking-widest text-brand-slate-400 border-r border-brand-slate-100 last:border-0">
+                        {day}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-px bg-brand-slate-200">
+                    {eachDayOfInterval({
+                      start: startOfWeek(calendarMonth),
+                      end: endOfWeek(endOfMonth(calendarMonth))
+                    }).map((day, idx) => {
+                      const isCurrentMonth = isSameMonth(day, calendarMonth);
+                      
+                      const dayBookings = revenue.filter(r => {
+                        const start = dateFnsParseISO(r.paymentDate);
+                        const end = addDays(start, r.nights || 1); 
+                        return day >= start && day < end;
+                      });
+
+                      return (
+                        <div 
+                          key={idx} 
+                          className={cn(
+                            "min-h-[100px] sm:min-h-[140px] bg-white p-1 sm:p-2 flex flex-col",
+                            !isCurrentMonth && "bg-brand-slate-50/80 text-brand-slate-300"
+                          )}
+                        >
+                          <span className={cn(
+                            "text-xs font-bold mb-1 sm:mb-2",
+                            isSameDay(day, new Date()) ? "w-6 h-6 rounded-full bg-brand-accent text-white flex items-center justify-center text-[10px] shadow-sm ml-1 mt-1" : "ml-1"
+                          )}>
+                            {dateFnsFormat(day, 'd')}
+                          </span>
+                          <div className="flex-1 space-y-1 overflow-y-auto no-scrollbar">
+                            {dayBookings.map((b, i) => {
+                              const start = dateFnsParseISO(b.paymentDate);
+                              const isStart = isSameDay(day, start);
+                              const end = addDays(start, b.nights || 1);
+                              const isEnd = isSameDay(addDays(day, 1), end);
+                              
+                              let platformColor = "bg-blue-50 text-blue-700 border-blue-200";
+                              if (b.platform?.toLowerCase().includes('airbnb')) {
+                                platformColor = "bg-pink-50 text-pink-700 border-pink-200";
+                              } else if (b.platform?.toLowerCase().includes('direct')) {
+                                platformColor = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                              }
+
+                              return (
+                                <div 
+                                  key={`${b.id}-${i}`} 
+                                  className={cn(
+                                    "px-1.5 py-1 text-[9px] font-bold truncate leading-tight border-b sm:border border-transparent relative z-10",
+                                    platformColor,
+                                    isStart ? "sm:rounded-l-md sm:ml-1" : "sm:border-l-0 -ml-2",
+                                    isEnd ? "sm:border-r sm:rounded-r-md sm:mr-1" : "sm:border-r-0 -mr-2"
+                                  )}
+                                  title={`${b.guest} (${b.platform}) - ${b.nights || 1} nights`}
+                                >
+                                  {(isStart || day.getDay() === 0) && (
+                                    <span className="uppercase tracking-tight whitespace-nowrap">
+                                      {b.guest} <span className="opacity-70 font-medium">({b.platform})</span>
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </motion.div>
+            )}
 
             {view === 'info' && (
               <motion.div
@@ -1241,11 +1518,11 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
                   {/* Listings & Links */}
                   <div className="lg:col-span-4 space-y-6">
                     <div className="bento-card bg-white">
-                      <span className="bento-label mb-6">Linked Platforms</span>
+                      <span className="bento-label mb-6">Resource Links & Documents</span>
                       <div className="space-y-3">
                         {(!property.links || property.links.length === 0) ? (
                           <div className="text-center py-8 rounded-xl border border-dashed border-brand-slate-200 bg-brand-slate-50">
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-400">No platforms linked</div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-brand-slate-400">No resources linked</div>
                           </div>
                         ) : (
                           property.links.map((link, idx) => (
