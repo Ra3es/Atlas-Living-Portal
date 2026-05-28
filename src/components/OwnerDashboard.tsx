@@ -595,41 +595,49 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
 
                 {/* Row 1: Statement Period, Operational Profit, Net Revenue, Gross Revenue */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-                  <div className="bento-card col-span-2 lg:col-span-1">
-                    <span className="bento-label">Period</span>
-                    <div className="text-xs sm:text-sm font-bold text-brand-slate-800 flex items-center gap-2 uppercase">
-                      {format(parseISO(startDate), 'MMM dd')} — {format(parseISO(endDate), 'MMM dd')}
+                  <div className="bento-card col-span-2 lg:col-span-1 shadow-sm border-brand-slate-200">
+                    <span className="bento-label flex items-center gap-2">
+                       <Calendar size={14} className="text-brand-slate-400" /> Period
+                    </span>
+                    <div className="text-sm md:text-base font-bold text-brand-slate-800 flex flex-col pt-2 uppercase space-y-1">
+                      <span>{format(parseISO(startDate), 'MMM dd')}</span>
+                      <span className="text-[10px] text-brand-slate-400 font-bold uppercase tracking-widest pl-2">Through</span>
+                      <span>{format(parseISO(endDate), 'MMM dd')}</span>
                     </div>
                   </div>
 
-                  <button onClick={() => setView('revenue')} className="bento-card col-span-2 lg:col-span-2 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer bg-green-50/30 border-green-100 p-3 sm:p-5">
-                    <span className="bento-label text-green-700">Profit</span>
-                    <div className={cn("text-lg sm:text-2xl font-bold tracking-tight mb-2", stats.profit >= 0 ? "text-green-600" : "text-red-500")}>
+                  <button onClick={() => setView('revenue')} className="bento-card col-span-2 lg:col-span-2 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer bg-gradient-to-br from-green-50 via-emerald-50/50 to-white border-green-100 p-4 sm:p-5 shadow-sm group">
+                    <span className="bento-label flex items-center gap-2 text-green-700">
+                       <TrendingUp size={14} className="group-hover:-translate-y-0.5 transition-transform" /> Profit
+                    </span>
+                    <div className={cn("text-2xl sm:text-4xl font-black tracking-tighter mb-2", stats.profit >= 0 ? "text-green-600" : "text-red-500")}>
                       {stats.totalGross > 0 ? formatCurrency(stats.profit) : (
-                        <span className="text-[9px] sm:text-sm text-brand-slate-400 font-medium tracking-tight">Pending</span>
+                        <span className="text-sm text-brand-slate-400 font-medium tracking-tight">Pending</span>
                       )}
                     </div>
-                    <div className="mt-auto pt-2 sm:pt-4 flex items-center justify-between border-t border-green-100/50">
-                      <div className="text-[8px] sm:text-[9px] uppercase font-bold tracking-widest text-brand-slate-400">Net Profit</div>
-                      <div className="text-xs sm:text-sm font-black text-green-700">
+                    <div className="mt-auto pt-2 sm:pt-4 flex items-center justify-between border-t border-green-200/50">
+                      <div className="text-[9px] uppercase font-bold tracking-widest text-brand-slate-500">Net Profit</div>
+                      <div className="text-xs sm:text-sm font-black text-green-700 bg-green-100/50 px-2 py-0.5 rounded-full">
                         {stats.totalGross > 0 ? ((stats.profit / stats.totalGross) * 100).toFixed(1) : 0}% Margin
                       </div>
                     </div>
                   </button>
 
-                  <button onClick={() => setView('revenue')} className="bento-card col-span-2 lg:col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
-                    <span className="bento-label text-brand-accent">Net Revenue</span>
-                    <div className="bento-value text-base sm:text-lg lg:text-2xl text-brand-slate-700">{formatCurrency(stats.netRevenueInOwnerBank)}</div>
-                    <div className="mt-auto pt-2 sm:pt-4 flex flex-col gap-1">
-                      <div className="flex justify-between items-center text-[8px] sm:text-[9px] font-bold uppercase">
+                  <button onClick={() => setView('revenue')} className="bento-card col-span-2 lg:col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-4 sm:p-5 shadow-sm flex flex-col group border-brand-slate-200 bg-white">
+                    <span className="bento-label flex items-center gap-2 text-brand-accent">
+                       <Wallet size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" /> Net Revenue
+                    </span>
+                    <div className="text-xl sm:text-3xl font-black tracking-tighter text-brand-slate-800 my-2">{formatCurrency(stats.netRevenueInOwnerBank)}</div>
+                    <div className="mt-auto pt-2 sm:pt-3 flex flex-col gap-1.5 border-t border-brand-slate-100">
+                      <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-widest">
                         <span className="text-brand-slate-400">Gross</span>
                         <span className="text-brand-slate-700">{formatCurrency(stats.totalGross)}</span>
                       </div>
-                      <div className="flex justify-between items-center text-[8px] sm:text-[9px] font-bold uppercase border-t border-brand-slate-100 pt-1">
+                      <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-widest">
                         <span className="text-brand-slate-400">Platform Fees</span>
                         <span className="text-red-500">-{formatCurrency(stats.totalPlatformFees)}</span>
                       </div>
-                      <div className="flex justify-between items-center text-[8px] sm:text-[9px] font-bold uppercase border-t border-brand-slate-100 pt-1">
+                      <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-widest">
                         <span className="text-brand-slate-400">Mgt Fees</span>
                         <span className="text-red-500">-{formatCurrency(stats.totalManagementFees)}</span>
                       </div>
@@ -639,25 +647,32 @@ export default function OwnerDashboard({ property: initialProperty, onLogout }: 
 
                 {/* Row 2: Operational Expenses, Management Fees, Payments Applied, Outstanding Settlement */}
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-                  <button onClick={() => setView('expenses')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
-                    <span className="bento-label text-red-500">Expenses</span>
-                    <div className="bento-value text-red-600 text-base sm:text-lg lg:text-2xl">{formatCurrency(stats.totalExpenses)}</div>
-                    <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[9px] uppercase font-bold tracking-widest text-brand-slate-400">Property</div>
+                  <button onClick={() => setView('expenses')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-4 sm:p-5 bg-red-50/50 border-red-100 group shadow-sm">
+                    <span className="bento-label flex items-center gap-2 text-red-600 mb-2">
+                       <ArrowDownRight size={14} className="group-hover:translate-y-0.5 group-hover:translate-x-0.5 transition-transform" /> Expenses
+                    </span>
+                    <div className="text-xl sm:text-3xl font-black tracking-tighter text-red-600">{formatCurrency(stats.totalExpenses)}</div>
+                    <div className="mt-auto pt-2 sm:pt-4 text-[9px] uppercase font-bold tracking-widest text-red-900/60">Property</div>
                   </button>
 
-                  <button onClick={() => setView('payments')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5">
-                    <span className="bento-label text-green-600">Payments</span>
-                    <div className="bento-value text-green-600 text-base sm:text-lg lg:text-2xl">{formatCurrency(stats.totalPaymentsToAtlas)}</div>
-                    <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[10px] text-brand-slate-400 font-medium uppercase tracking-tight">Reconciled</div>
+                  <button onClick={() => setView('payments')} className="bento-card col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-4 sm:p-5 border-brand-slate-200 bg-white group shadow-sm">
+                    <span className="bento-label flex items-center gap-2 text-green-600 mb-2">
+                       <CreditCard size={14} className="group-hover:scale-110 transition-transform" /> Payments
+                    </span>
+                    <div className="text-xl sm:text-3xl font-black tracking-tighter text-green-600">{formatCurrency(stats.totalPaymentsToAtlas)}</div>
+                    <div className="mt-auto pt-2 sm:pt-4 text-[9px] text-brand-slate-500 font-bold uppercase tracking-widest">Reconciled</div>
                   </button>
 
-                  <button onClick={() => setView('payments')} className={cn("bento-card col-span-2 sm:col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-3 sm:p-5", stats.balanceRemainingToAtlas > 0 ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200")}>
-                    <span className="bento-label font-bold text-[8px] sm:text-[10px]">{stats.balanceRemainingToAtlas > 0 ? "Currently Payable" : "Settled"}</span>
-                    <div className={cn("text-base sm:text-lg lg:text-3xl font-black tracking-tighter", stats.balanceRemainingToAtlas > 0 ? "text-amber-700" : "text-green-700")}>
+                  <button onClick={() => setView('payments')} className={cn("bento-card col-span-2 sm:col-span-1 text-left hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer p-4 sm:p-5 shadow-sm group", stats.balanceRemainingToAtlas > 0 ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200")}>
+                    <span className={cn("bento-label font-bold flex items-center gap-2 mb-2", stats.balanceRemainingToAtlas > 0 ? "text-amber-700" : "text-emerald-700")}>
+                       {stats.balanceRemainingToAtlas > 0 ? <AlertTriangle size={14} className="group-hover:scale-110 transition-transform" /> : <CheckCircle size={14} className="group-hover:scale-110 transition-transform" />}
+                       {stats.balanceRemainingToAtlas > 0 ? "Currently Payable" : "Settled"}
+                    </span>
+                    <div className={cn("text-2xl sm:text-3xl lg:text-4xl font-black tracking-tighter", stats.balanceRemainingToAtlas > 0 ? "text-amber-600" : "text-emerald-600")}>
                       {formatCurrency(Math.abs(stats.balanceRemainingToAtlas))}
                     </div>
-                    <div className="mt-auto pt-2 sm:pt-4 text-[8px] sm:text-[10px] font-bold uppercase tracking-widest text-brand-slate-400 truncate">
-                      {stats.balanceRemainingToAtlas > 0 ? "All-Time Balance" : "All-time Balance Settled"}
+                    <div className={cn("mt-auto pt-2 sm:pt-4 text-[9px] font-bold uppercase tracking-widest truncate", stats.balanceRemainingToAtlas > 0 ? "text-amber-900/60" : "text-emerald-900/60")}>
+                      {stats.balanceRemainingToAtlas > 0 ? "All-Time Balance Due" : "All-time Balance Settled"}
                     </div>
                   </button>
                 </div>
